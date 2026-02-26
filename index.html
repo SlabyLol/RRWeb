@@ -1,220 +1,236 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>RUSSIAN ROULETTE × NIGHT CITY</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RUSSIAN ROULETTE × NIGHT CITY</title>
 
-  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
 
-  <style>
-    :root {
-      --pink: #ff0044;
-      --cyan: #00ffff;
-      --purple: #c300ff;
-      --dark: #0a0015;
-    }
-    body {
-      margin:0; height:100vh; background:var(--dark);
-      color:#e8f0ff; font-family:'Courier New',monospace; overflow:hidden;
-    }
-    .screen { position:absolute; inset:0; display:none; flex-direction:column; align-items:center; justify-content:center; z-index:10; padding:20px; }
-    .screen.active { display:flex; }
+<style>
+:root{
+--pink:#ff0044;
+--cyan:#00ffff;
+--purple:#c300ff;
+--bg:#0a0015;
+}
+body{
+margin:0;
+background:var(--bg);
+color:white;
+font-family:Courier New,monospace;
+overflow:hidden;
+}
+.screen{
+position:absolute;
+inset:0;
+display:none;
+flex-direction:column;
+align-items:center;
+justify-content:center;
+}
+.active{display:flex;}
 
-    .title {
-      font-size: clamp(5rem, 15vw, 12rem);
-      font-weight:900; text-transform:uppercase; letter-spacing:0.5em;
-      color:#fff; text-shadow:0 0 25px var(--cyan), 0 0 70px var(--pink);
-      position:relative; animation:glitch 5s infinite;
-    }
-    .title::before, .title::after {
-      content:attr(data-text);
-      position:absolute;
-      inset:0;
-      background:var(--dark);
-      clip:rect(0,9999px,0,0);
-    }
-    .title::before {
-      left:5px;
-      text-shadow:-7px 0 var(--pink);
-      animation:glitch1 2.2s infinite alternate-reverse;
-    }
-    .title::after {
-      left:-5px;
-      text-shadow:7px 0 var(--cyan);
-      animation:glitch2 3.3s infinite alternate-reverse;
-    }
+.title{
+font-size:6vw;
+letter-spacing:8px;
+text-shadow:0 0 20px var(--cyan),0 0 50px var(--pink);
+animation:glitch 3s infinite;
+}
+@keyframes glitch{
+0%{transform:translate(0)}
+10%{transform:translate(3px,-3px)}
+20%{transform:translate(-3px,3px)}
+30%{transform:translate(0)}
+}
 
-    @keyframes glitch  {
-      0%,100%{transform:translate(0)}
-      3%,7%,11%{transform:translate(6px,-5px)}
-    }
-    @keyframes glitch1 {
-      0%{clip:rect(30px,9999px,60px,0)}
-      50%{clip:rect(80px,9999px,120px,0)}
-      100%{clip:rect(40px,9999px,80px,0)}
-    }
-    @keyframes glitch2 {
-      0%{clip:rect(70px,9999px,110px,0)}
-      50%{clip:rect(20px,9999px,60px,0)}
-      100%{clip:rect(5px,9999px,45px,0)}
-    }
+button{
+padding:15px 40px;
+margin:15px;
+font-size:1.2rem;
+background:transparent;
+color:var(--pink);
+border:2px solid var(--pink);
+cursor:pointer;
+transition:0.2s;
+}
+button:hover{
+background:var(--pink);
+color:black;
+}
 
-    .btn {
-      padding:22px 70px;
-      font-size:2.2rem;
-      margin:35px;
-      border:4px solid var(--pink);
-      background:transparent;
-      color:var(--pink);
-      cursor:pointer;
-    }
+.player-card{
+border:2px solid var(--purple);
+padding:10px 25px;
+margin:10px;
+min-width:140px;
+text-align:center;
+}
+.dead{
+opacity:0.4;
+text-decoration:line-through;
+}
 
-    .player-card {
-      background:rgba(30,0,60,0.8);
-      border:3px solid var(--purple);
-      padding:16px 32px;
-      margin:12px;
-      min-width:170px;
-      text-align:center;
-    }
-    .player-card.dead {
-      opacity:0.4;
-      text-decoration:line-through;
-    }
-  </style>
+#players{
+display:flex;
+flex-wrap:wrap;
+justify-content:center;
+}
+</style>
 </head>
-
 <body>
 
-<div id="startScreen" class="screen active">
-  <h1 class="title" data-text="RUSSIAN ROULETTE">RUSSIAN ROULETTE</h1>
-  <input id="playerName" placeholder="DEIN HANDLE / NICKNAME">
-  <button class="btn" id="startBtn">START GAME</button>
+<div id="start" class="screen active">
+<h1 class="title">RUSSIAN ROULETTE</h1>
+<input id="nameInput" placeholder="DEIN NAME">
+<button id="goMenu">ENTER</button>
 </div>
 
-<div id="mainMenu" class="screen">
-  <h1 class="title" data-text="NIGHT CITY">NIGHT CITY</h1>
-  <button class="btn" id="createLobbyBtn">CREATE LOBBY</button>
-  <button class="btn" id="joinLobbyBtn">JOIN LOBBY</button>
+<div id="menu" class="screen">
+<h1 class="title">NIGHT CITY</h1>
+<button id="createLobby">CREATE LOBBY</button>
+<button id="joinLobby">JOIN LOBBY</button>
 </div>
 
-<div id="lobbyScreen" class="screen">
-  <h1 class="title" data-text="LOBBY">LOBBY</h1>
-  <div id="lobbyCodeDisplay" style="font-size:4rem;margin:40px 0;"></div>
-  <div id="lobbyPlayers" style="display:flex;flex-wrap:wrap;justify-content:center;"></div>
-  <button class="btn" id="addKI">+ KI</button>
-  <button class="btn" id="startGameBtn">START</button>
+<div id="lobby" class="screen">
+<h1 class="title">LOBBY</h1>
+<div id="lobbyCode" style="font-size:2rem;margin:20px"></div>
+<div id="players"></div>
+<button id="addKI">+ KI</button>
+<button id="startGame">START</button>
+<button id="shootBtn">SHOOT</button>
 </div>
 
 <script>
-const firebaseConfig = {
-  apiKey: "AIzaSyBa5w0hQ1v7Nowk-BvDgkGeNRNf1WJtDgw",
-  authDomain: "rrweb-dc73f.firebaseapp.com",
-  databaseURL: "https://rrweb-dc73f-default-rtdb.europe-west1.firebasedatabase.app",
-  projectId: "rrweb-dc73f"
+const firebaseConfig={
+apiKey:"AIzaSyBa5w0hQ1v7Nowk-BvDgkGeNRNf1WJtDgw",
+authDomain:"rrweb-dc73f.firebaseapp.com",
+databaseURL:"https://rrweb-dc73f-default-rtdb.europe-west1.firebasedatabase.app",
+projectId:"rrweb-dc73f"
 };
 
 firebase.initializeApp(firebaseConfig);
-const db = firebase.database();
-const auth = firebase.auth();
+const db=firebase.database();
+const auth=firebase.auth();
 
-let user=null;
-let lobbyCode="";
-let playerName="";
-let myPlayerKey=null;
-let gameRef=null;
-let players=[];
+let user,playerName,lobbyCode,myKey;
+let gameRef,players=[],gameState;
 
 auth.signInAnonymously();
 auth.onAuthStateChanged(u=>user=u);
 
 function show(id){
-  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
-  document.getElementById(id).classList.add('active');
+document.querySelectorAll(".screen").forEach(s=>s.classList.remove("active"));
+document.getElementById(id).classList.add("active");
 }
 
-document.getElementById("startBtn").onclick=()=>{
-  playerName=document.getElementById("playerName").value.trim()||"Choom";
-  show("mainMenu");
+document.getElementById("goMenu").onclick=()=>{
+playerName=document.getElementById("nameInput").value||"Player";
+show("menu");
 };
 
-document.getElementById("createLobbyBtn").onclick=()=>{
-  lobbyCode=Math.random().toString(36).slice(2,6).toUpperCase();
-  show("lobbyScreen");
-  document.getElementById("lobbyCodeDisplay").textContent=lobbyCode;
-  joinLobby();
+document.getElementById("createLobby").onclick=()=>{
+lobbyCode=Math.random().toString(36).slice(2,6).toUpperCase();
+enterLobby();
 };
 
-function joinLobby(){
-  if(!user){setTimeout(joinLobby,200);return;}
+document.getElementById("joinLobby").onclick=()=>{
+lobbyCode=prompt("LOBBY CODE?");
+if(lobbyCode) enterLobby();
+};
 
-  gameRef=db.ref("lobbies/"+lobbyCode);
-  const playersRef=gameRef.child("players");
+function enterLobby(){
+show("lobby");
+document.getElementById("lobbyCode").innerText="CODE: "+lobbyCode;
+gameRef=db.ref("lobbies/"+lobbyCode);
 
-  const newRef=playersRef.push();
-  myPlayerKey=newRef.key;
+const playersRef=gameRef.child("players");
+const newRef=playersRef.push();
+myKey=newRef.key;
 
-  newRef.set({
-    name:playerName,
-    uid:user.uid,
-    alive:true,
-    isKI:false
-  });
+newRef.set({
+name:playerName,
+uid:user.uid,
+alive:true,
+isKI:false
+});
 
-  // Entfernt Spieler wenn Browser schließt
-  newRef.onDisconnect().remove();
+newRef.onDisconnect().remove();
 
-  gameRef.on("value",snap=>{
-    const val=snap.val()||{};
-    players=Object.entries(val.players||{}).map(([k,v])=>({key:k,...v}));
-    updateLobbyUI();
-  });
+gameRef.on("value",snap=>{
+const data=snap.val();
+if(!data)return;
 
-  window.addEventListener("beforeunload",cleanupLobby);
+players=Object.entries(data.players||{})
+.map(([k,v])=>({key:k,...v}));
+
+gameState=data.gameState;
+updateUI();
+});
 }
 
-function updateLobbyUI(){
-  document.getElementById("lobbyPlayers").innerHTML=
-  players.map(p=>
-    `<div class="player-card ${p.alive?'':'dead'}">
-     ${p.name}${p.isKI?' 🤖':''}
-     </div>`
-  ).join("");
+function updateUI(){
+document.getElementById("players").innerHTML=
+players.map(p=>{
+return `<div class="player-card ${p.alive?'':'dead'}">
+${p.name}${p.isKI?' 🤖':''}
+</div>`;
+}).join("");
+
+if(!gameState)return;
+
+const current=players[gameState.turn];
+if(current?.isKI && current.alive){
+setTimeout(()=>doShoot(),1500);
+}
 }
 
 document.getElementById("addKI").onclick=()=>{
-  gameRef.child("players").push({
-    name:"KI-"+Math.floor(Math.random()*99),
-    uid:"ki"+Date.now(),
-    alive:true,
-    isKI:true
-  });
+gameRef.child("players").push({
+name:"KI-"+Math.floor(Math.random()*100),
+uid:"ki"+Date.now(),
+alive:true,
+isKI:true
+});
 };
 
-// 🔥 Chat löschen wenn keine echten Spieler mehr
-function cleanupLobby(){
-  if(!myPlayerKey)return;
+document.getElementById("startGame").onclick=()=>{
+gameRef.child("gameState").set({
+turn:0,
+chambers:6,
+bullet:Math.floor(Math.random()*6),
+pos:0
+});
+};
 
-  const playerRef=db.ref(`lobbies/${lobbyCode}/players/${myPlayerKey}`);
-  playerRef.remove().then(()=>{
-    checkCleanup();
-  });
+document.getElementById("shootBtn").onclick=()=>{
+if(!gameState)return;
+const current=players[gameState.turn];
+if(current.uid!==user.uid)return;
+doShoot();
+};
+
+function doShoot(){
+let pos=gameState.pos+1;
+
+if(pos-1===gameState.bullet){
+const deadKey=players[gameState.turn].key;
+gameRef.child("players/"+deadKey).update({alive:false});
 }
 
-function checkCleanup(){
-  db.ref(`lobbies/${lobbyCode}/players`).once("value")
-  .then(snap=>{
-    const data=snap.val()||{};
-    const realPlayers=Object.values(data).filter(p=>!p.isKI);
-    if(realPlayers.length===0){
-      db.ref(`lobbies/${lobbyCode}/chat`).remove();
-    }
-  });
+gameRef.child("gameState/pos").set(pos%6);
+
+gameRef.child("gameState/turn")
+.transaction(t=>{
+let next=(t+1)%players.length;
+while(!players[next].alive){
+next=(next+1)%players.length;
+}
+return next;
+});
 }
 </script>
-
 </body>
 </html>
