@@ -4,11 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>RUSSIAN ROULETTE × NIGHT CITY</title>
-
-<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
-
 <style>
 body{margin:0;background:#0a0015;color:white;font-family:Courier New,monospace;overflow:hidden}
 .screen{display:none;position:absolute;inset:0;flex-direction:column;align-items:center;justify-content:center;padding:20px;}
@@ -30,12 +25,14 @@ button:hover{background:#ff0044;color:black}
 </head>
 <body>
 
+<!-- START -->
 <div id="start" class="screen active">
 <h1 class="title">NIGHT CITY</h1>
 <input id="nameInput" placeholder="NAME">
 <button onclick="enterMenu()">ENTER</button>
 </div>
 
+<!-- MENU -->
 <div id="menu" class="screen">
 <h2>SERVER LIST</h2>
 <div id="serverList"></div>
@@ -44,6 +41,7 @@ button:hover{background:#ff0044;color:black}
 <button onclick="joinPrivate()">JOIN PRIVATE</button>
 </div>
 
+<!-- LOBBY -->
 <div id="lobby" class="screen">
 <h1 class="title">LOBBY</h1>
 <div id="codeDisplay"></div>
@@ -61,6 +59,7 @@ button:hover{background:#ff0044;color:black}
 <button onclick="sendChat()">SEND</button>
 </div>
 
+<!-- GAME -->
 <div id="game" class="screen">
 <h1 class="title">GAME</h1>
 <div id="playersCircle"></div>
@@ -78,35 +77,41 @@ button:hover{background:#ff0044;color:black}
 <div id="particles"></div>
 </div>
 
-<script>
-// Firebase
-const firebaseConfig={
+<!-- Firebase Modular SDK -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
+import { getDatabase, ref, onValue, push, set, update, remove, runTransaction } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-database.js";
+import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-auth.js";
+
+// --- Firebase Config ---
+const firebaseConfig = {
 apiKey:"AIzaSyBa5w0hQ1v7Nowk-BvDgkGeNRNf1WJtDgw",
 authDomain:"rrweb-dc73f.firebaseapp.com",
 databaseURL:"https://rrweb-dc73f-default-rtdb.europe-west1.firebasedatabase.app",
 projectId:"rrweb-dc73f"
 };
-firebase.initializeApp(firebaseConfig);
-const db=firebase.database();
-const auth=firebase.auth();
-
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+const auth = getAuth();
 let user,name,lobbyCode,myKey,isHost=false,gameRef,players=[],gameState={};
 
-auth.signInAnonymously();
-auth.onAuthStateChanged(u=>user=u);
+signInAnonymously(auth);
+onAuthStateChanged(auth,u=>user=u);
 
-// Screen helper
+// --- Helper ---
 function show(id){document.querySelectorAll(".screen").forEach(s=>s.classList.remove("active"));document.getElementById(id).classList.add("active")}
 
-// Start
+// --- Start ---
 function enterMenu(){
 name=document.getElementById("nameInput").value||"Player";
 show("menu");
 loadServers();
 }
 
+// --- Load Public Lobbies ---
 function loadServers(){
-db.ref("lobbies").on("value",snap=>{
+const lobbiesRef = ref(db,"lobbies");
+onValue(lobbiesRef,snap=>{
 let data=snap.val()||{};
 let list="";
 for(let code in data){
@@ -117,144 +122,85 @@ document.getElementById("serverList").innerHTML=list;
 });
 }
 
-// Lobby
+// --- Lobby ---
 function createLobby(pub){
 lobbyCode=Math.random().toString(36).slice(2,6).toUpperCase();
 isHost=true;
 setupLobby(pub);
 }
-
-function joinPrivate(){
-let code=prompt("CODE?");
-if(code) joinLobby(code.toUpperCase());
-}
-
-function joinLobby(code){
-lobbyCode=code;
-setupLobby(false);
-}
-
+function joinPrivate(){let code=prompt("CODE?");if(code) joinLobby(code.toUpperCase());}
+function joinLobby(code){lobbyCode=code;setupLobby(false);}
 function setupLobby(pub){
 show("lobby");
 document.getElementById("codeDisplay").innerText="CODE: "+lobbyCode;
-gameRef=db.ref("lobbies/"+lobbyCode);
-
-// Init lobby only if host
-if(isHost){
-gameRef.update({public:pub, hostUid:user.uid, players:{}, chat:{}});
-}
-
-// Add self as player
-const pRef=gameRef.child("players").push();
-myKey=pRef.key;
-pRef.set({name, uid:user.uid, alive:true, isKI:false});
+gameRef = ref(db,"lobbies/"+lobbyCode);
+if(isHost) update(gameRef,{public:pub,hostUid:user.uid,players:{},chat:{}});
+// Add self
+const pRef = push(ref(db,"lobbies/"+lobbyCode+"/players"));
+myKey = pRef.key;
+set(pRef,{name,uid:user.uid,alive:true,isKI:false});
 pRef.onDisconnect().remove();
 
-// Listen for updates
-gameRef.on("value",snap=>{
-const data=snap.val();
-if(!data) return;
+// Listen
+onValue(gameRef,snap=>{
+const data=snap.val(); if(!data) return;
 players=Object.entries(data.players||{}).map(([k,v])=>({key:k,...v}));
 gameState=data.gameState||{};
 updateLobby();
 updateGame();
 updateChat(data.chat||{},true);
+// Delete lobby if no humans
+if(isHost){const humans=players.filter(p=>!p.isKI); if(humans.length===0){remove(gameRef); show("menu");}}
 });
 }
+function updateLobby(){document.getElementById("playerList").innerHTML=players.map(p=>`<div class="playerCard ${p.alive?'':'dead'}">${p.name}${p.isKI?' 🤖':''}</div>`).join(""); document.getElementById("startBtn").style.display=isHost?"inline":"none";}
 
-function updateLobby(){
-document.getElementById("playerList").innerHTML=players.map(p=>`<div class="playerCard ${p.alive?'':'dead'}">${p.name}${p.isKI?' 🤖':''}</div>`).join("");
-document.getElementById("startBtn").style.display=isHost?"inline":"none";
-}
-
-// Start game
+// --- Start Game ---
 document.getElementById("startBtn").onclick=()=>{
 let mod=document.getElementById("modifier").value;
-let chambers=6;
-let bullet=Math.floor(Math.random()*6);
-if(mod==="8"){chambers=8; bullet=Math.floor(Math.random()*8);}
+let chambers=6,bullet=Math.floor(Math.random()*6);
+if(mod==="8"){chambers=8;bullet=Math.floor(Math.random()*8);}
 if(mod==="double"){bullet=[Math.floor(Math.random()*6),Math.floor(Math.random()*6)];}
-gameRef.child("gameState").set({turn:0,chambers,bullet,pos:0});
+update(ref(db,"lobbies/"+lobbyCode+"/gameState"),{turn:0,chambers,bullet,pos:0});
 show("game");
 };
 
-// Game
+// --- Game Update ---
 function updateGame(){
-const circle=document.getElementById("playersCircle");
-circle.innerHTML="";
-const n=players.length;
-const radius=150;
+const circle=document.getElementById("playersCircle");circle.innerHTML="";
+const n=players.length,radius=150;
 players.forEach((p,i)=>{
-const angle=(2*Math.PI*i/n)-Math.PI/2;
-const x=radius*Math.cos(angle)+radius;
-const y=radius*Math.sin(angle)+radius;
-const div=document.createElement("div");
-div.className="playerCard"+(p.alive?"":" dead");
-div.style.left=x+"px"; div.style.top=y+"px"; div.innerText=p.name;
-circle.appendChild(div);
+const angle=(2*Math.PI*i/n)-Math.PI/2,x=radius*Math.cos(angle)+radius,y=radius*Math.sin(angle)+radius;
+const div=document.createElement("div");div.className="playerCard"+(p.alive?"":" dead");div.style.left=x+"px";div.style.top=y+"px";div.innerText=p.name;circle.appendChild(div);
 });
-// Pfeil
 const arrow=document.getElementById("currentArrow");
-if(gameState.turn!=null && players[gameState.turn]){
-let angle=(360/n)*gameState.turn-90;
-arrow.style.transform=`rotate(${angle}deg) translate(180px)`;
-}
-// KI automatisch
-let current=players[gameState.turn]; 
-if(current?.isKI && current.alive){setTimeout(()=>shoot(),1500);}
+if(gameState.turn!=null && players[gameState.turn]){let angle=(360/n)*gameState.turn-90;arrow.style.transform=`rotate(${angle}deg) translate(180px)`;}
+let current=players[gameState.turn]; if(current?.isKI && current.alive){setTimeout(()=>shoot(),1500);}
 }
 
-// Shoot
-function shoot(){
-let turnPlayer=players[gameState.turn];
-if(!turnPlayer) return;
-if(turnPlayer.uid!==user.uid && !turnPlayer.isKI) return;
+// --- Shoot / GiveUp / Spin ---
+function shoot(){let turnPlayer=players[gameState.turn]; if(!turnPlayer) return;if(turnPlayer.uid!==user.uid && !turnPlayer.isKI) return;
+let pos=(gameState.pos||0)+1,dead=false;
+if(Array.isArray(gameState.bullet)){if(gameState.bullet.includes(pos-1)) dead=true;} else if(pos-1===gameState.bullet) dead=true;
+if(dead){update(ref(db,"lobbies/"+lobbyCode+"/players/"+turnPlayer.key),{alive:false});createBangParticles();}
+nextTurn(pos);checkWinner();}
+function giveUp(){let turnPlayer=players[gameState.turn]; if(!turnPlayer) return;update(ref(db,"lobbies/"+lobbyCode+"/players/"+turnPlayer.key),{alive:false}); nextTurn(gameState.pos||0); checkWinner();}
+function spin(){update(ref(db,"lobbies/"+lobbyCode+"/gameState"),{pos:Math.floor(Math.random()*(gameState.chambers||6))});}
+function nextTurn(pos){update(ref(db,"lobbies/"+lobbyCode+"/gameState"),{pos:pos%(gameState.chambers||6)}); runTransaction(ref(db,"lobbies/"+lobbyCode+"/gameState/turn"),t=>{let n=(t+1)%players.length,s=0;while(!players[n].alive && s<players.length){n=(n+1)%players.length;s++} return n;});}
 
-let pos=(gameState.pos||0)+1;
-let dead=false;
-if(Array.isArray(gameState.bullet)){
-if(gameState.bullet.includes(pos-1)) dead=true;
-}else if(pos-1===gameState.bullet) dead=true;
+// --- KI ---
+function addKI(){push(ref(db,"lobbies/"+lobbyCode+"/players"),{name:"KI-"+Math.floor(Math.random()*100),uid:"ki"+Date.now(),alive:true,isKI:true});}
 
-if(dead){
-gameRef.child("players/"+turnPlayer.key).update({alive:false});
-createBangParticles();
-}
-
-nextTurn(pos);
-checkWinner();
-}
-
-function giveUp(){
-let turnPlayer=players[gameState.turn]; if(!turnPlayer) return;
-gameRef.child("players/"+turnPlayer.key).update({alive:false}); nextTurn(gameState.pos||0); checkWinner();
-}
-
-function spin(){gameRef.child("gameState/pos").set(Math.floor(Math.random()*(gameState.chambers||6)));}
-
-function nextTurn(pos){
-gameRef.child("gameState").update({pos:pos%(gameState.chambers||6)});
-gameRef.child("gameState/turn").transaction(t=>{
-let n=(t+1)%players.length; let safety=0;
-while(!players[n].alive && safety<players.length){n=(n+1)%players.length;safety++} return n;});
-}
-
-// KI
-function addKI(){gameRef.child("players").push({name:"KI-"+Math.floor(Math.random()*100),uid:"ki"+Date.now(),alive:true,isKI:true});}
-
-// Chat
-function sendChat(){let txt=document.getElementById("chatInput").value;if(!txt)return;gameRef.child("chat").push({name,text:txt});document.getElementById("chatInput").value="";}
-function sendChatGame(){let txt=document.getElementById("chatInputGame").value;if(!txt)return;gameRef.child("chat").push({name,text:txt});document.getElementById("chatInputGame").value="";}
+// --- Chat ---
+function sendChat(){let txt=document.getElementById("chatInput").value;if(!txt)return;push(ref(db,"lobbies/"+lobbyCode+"/chat"),{name:name,text:txt});document.getElementById("chatInput").value="";}
+function sendChatGame(){let txt=document.getElementById("chatInputGame").value;if(!txt)return;push(ref(db,"lobbies/"+lobbyCode+"/chat"),{name:name,text:txt});document.getElementById("chatInputGame").value="";}
 function updateChat(chat,lobby=false){let box=lobby?document.getElementById("chatBox"):document.getElementById("chatBoxGame");box.innerHTML=Object.values(chat).map(m=>`<div><b>${m.name}:</b> ${m.text}</div>`).join("");}
 
-// Leave
-function leaveLobby(){if(myKey) gameRef.child("players/"+myKey).remove(); show("menu"); isHost=false;}
-
-// Partikel
+// --- Leave / Partikel / Winner ---
+function leaveLobby(){if(myKey) remove(ref(db,"lobbies/"+lobbyCode+"/players/"+myKey)); show("menu"); isHost=false;}
 function createBangParticles(){const c=document.getElementById("particles");for(let i=0;i<50;i++){const p=document.createElement('div');p.style.cssText=`position:absolute;width:8px;height:8px;border-radius:50%;background:#ff0044;left:50%;top:50%;transform:translate(-50%,-50%);animation:fly ${0.6+Math.random()}s forwards`;c.appendChild(p);setTimeout(()=>p.remove(),1800);}}
-
-// Winner
 function checkWinner(){let alive=players.filter(p=>p.alive); if(alive.length===1){let txt=document.getElementById("winnerText"); txt.innerText=`WINNER: ${alive[0].name}`; txt.style.display="block"; setTimeout(()=>location.reload(),4000);}}
 </script>
+
 </body>
 </html>
