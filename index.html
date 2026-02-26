@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>RUSSIAN ROULETTE × NIGHT CITY</title>
+
+  <style>
+    :root {
+      --neon-pink: #ff2a8c;
+      --neon-cyan: #00faff;
+      --neon-purple: #c300ff;
+      --dark: #0b0014;
+      --dark2: #140028;
+    }
+
+    * { margin:0; padding:0; box-sizing:border-box; }
+
+    body {
+      height: 100vh;
+      background: var(--dark);
+      color: #e0f8ff;
+      font-family: 'Courier New', Consolas, monospace;
+      overflow: hidden;
+      position: relative;
+      background-image:
+        radial-gradient(circle at 10% 20%, rgba(195,0,255,0.08) 0%, transparent 25%),
+        radial-gradient(circle at 90% 80%, rgba(0,250,255,0.06) 0%, transparent 30%);
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        rgba(0,0,0,0.45) 2px,
+        rgba(0,0,0,0.45) 4px
+      );
+      pointer-events: none;
+      z-index: 9998;
+      animation: scanline 10s linear infinite;
+    }
+
+    @keyframes scanline {
+      0% { transform: translateY(-100%); }
+      100% { transform: translateY(100%); }
+    }
+
+    .screen {
+      position: absolute;
+      inset: 0;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      z-index: 10;
+    }
+
+    .screen.active { display: flex; }
+
+    .title-glitch {
+      font-size: clamp(3.5rem, 12vw, 7.5rem);
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: 0.4em;
+      color: white;
+      text-shadow:
+        0 0 10px var(--neon-cyan),
+        0 0 30px var(--neon-cyan),
+        0 0 60px var(--neon-pink),
+        0 0 100px var(--neon-pink);
+      position: relative;
+      animation: glitch-main 5s infinite;
+      margin-bottom: 0.3em;
+    }
+
+    .title-glitch::before,
+    .title-glitch::after {
+      content: attr(data-text);
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: var(--dark);
+      clip: rect(0, 9999px, 0, 0);
+      overflow: hidden;
+    }
+
+    .title-glitch::before {
+      left: 2px;
+      text-shadow: -4px 0 var(--neon-pink);
+      animation: glitch-top 1.8s infinite linear alternate-reverse;
+    }
+
+    .title-glitch::after {
+      left: -2px;
+      text-shadow: 4px 0 var(--neon-cyan);
+      animation: glitch-bottom 2.4s infinite linear alternate-reverse;
+    }
+
+    @keyframes glitch-main {
+      0%, 4%, 8%, 12%, 100% { transform: translate(0); }
+      2%, 6%, 10% { transform: translate(3px, -3px); }
+    }
+
+    @keyframes glitch-top {
+      0% { clip: rect(30px, 9999px, 60px, 0); }
+      20% { clip: rect(80px, 9999px, 120px, 0); }
+      40% { clip: rect(10px, 9999px, 50px, 0); }
+      60% { clip: rect(90px, 9999px, 140px, 0); }
+      80% { clip: rect(40px, 9999px, 80px, 0); }
+      100% { clip: rect(20px, 9999px, 70px, 0); }
+    }
+
+    @keyframes glitch-bottom {
+      0% { clip: rect(70px, 9999px, 110px, 0); }
+      20% { clip: rect(20px, 9999px, 60px, 0); }
+      40% { clip: rect(100px, 9999px, 150px, 0); }
+      60% { clip: rect(50px, 9999px, 90px, 0); }
+      80% { clip: rect(0px, 9999px, 40px, 0); }
+      100% { clip: rect(60px, 9999px, 100px, 0); }
+    }
+
+    .gun-intro {
+      font-size: clamp(8rem, 25vw, 18rem);
+      filter: drop-shadow(0 0 60px var(--neon-pink)) drop-shadow(0 0 120px var(--neon-cyan));
+      animation: revolver-breath 6s ease-in-out infinite;
+      margin: 30px 0 50px;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    @keyframes revolver-breath {
+      0%,100% { transform: scale(1) rotate(-8deg); }
+      50%     { transform: scale(1.06) rotate(8deg); }
+    }
+
+    input[type="text"] {
+      padding: 18px 30px;
+      font-size: 1.6rem;
+      width: 360px;
+      max-width: 90%;
+      background: rgba(20,0,40,0.7);
+      border: 2px solid var(--neon-cyan);
+      color: var(--neon-cyan);
+      text-shadow: 0 0 8px var(--neon-cyan);
+      box-shadow: 0 0 30px rgba(0,250,255,0.3);
+      transition: all 0.3s;
+      font-family: inherit;
+    }
+
+    input[type="text"]:focus {
+      outline: none;
+      border-color: var(--neon-pink);
+      box-shadow: 0 0 50px rgba(255,42,140,0.6);
+    }
+
+    .btn-neon {
+      padding: 18px 50px;
+      font-size: 1.5rem;
+      margin: 20px 15px;
+      background: transparent;
+      border: 3px solid var(--neon-pink);
+      color: var(--neon-pink);
+      text-shadow: 0 0 12px var(--neon-pink);
+      box-shadow: 0 0 25px rgba(255,42,140,0.5);
+      cursor: pointer;
+      transition: all 0.35s;
+      font-weight: bold;
+      letter-spacing: 2px;
+    }
+
+    .btn-neon:hover {
+      background: var(--neon-pink);
+      color: black;
+      box-shadow: 0 0 60px var(--neon-pink);
+      transform: translateY(-4px);
+    }
+
+    .btn-cyan { border-color: var(--neon-cyan); color: var(--neon-cyan); text-shadow: 0 0 12px var(--neon-cyan); }
+    .btn-cyan:hover { background: var(--neon-cyan); color: black; box-shadow: 0 0 60px var(--neon-cyan); }
+
+    /* Restliches CSS für Lobby & Game kannst du aus vorheriger Version übernehmen */
+  </style>
+</head>
+<body>
+
+<div id="nameScreen" class="screen active">
+  <h1 class="title-glitch" data-text="RUSSIAN ROULETTE">RUSSIAN ROULETTE</h1>
+  <div class="gun-intro" id="gunIntro">🔫</div>
+  <input type="text" id="playerName" placeholder="DEIN HANDLE / NICKNAME" maxlength="16" autofocus>
+  <div>
+    <button class="btn-neon btn-cyan" id="connectBtn">CONNECT TO NET</button>
+  </div>
+</div>
+
+<!-- Hier kommen lobbyScreen und gameScreen rein – wie in vorheriger Version -->
+
+<script>
+// ────────────────────────────────────────────────
+// Sehr simpler Einstieg – alle Wege funktionieren
+// ────────────────────────────────────────────────
+
+const nameInput = document.getElementById('playerName');
+const connectBtn = document.getElementById('connectBtn');
+const gunIntro = document.getElementById('gunIntro');
+
+function goToLobby() {
+  const name = nameInput.value.trim();
+  if (!name) {
+    alert("Gib wenigstens einen Namen ein, Choomba!");
+    nameInput.focus();
+    return;
+  }
+  // Hier könntest du den Namen speichern, z.B. localStorage oder direkt in Variable
+  localStorage.setItem('rr_nickname', name);
+  document.getElementById('nameScreen').classList.remove('active');
+  document.getElementById('lobbyScreen').classList.add('active');
+  // Optional: Sound oder Animation triggern
+}
+
+// Enter drücken im Input
+nameInput.addEventListener('keypress', e => {
+  if (e.key === 'Enter') goToLobby();
+});
+
+// Button klicken
+connectBtn.onclick = goToLobby;
+
+// Gun anklicken → auch starten
+gunIntro.onclick = goToLobby;
+
+// Optional: Gun vibriert beim Hover
+gunIntro.addEventListener('mouseenter', () => {
+  gunIntro.style.animationDuration = '2s';
+});
+gunIntro.addEventListener('mouseleave', () => {
+  gunIntro.style.animationDuration = '6s';
+});
+</script>
+
+</body>
+</html>
