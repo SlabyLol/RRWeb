@@ -6,6 +6,7 @@
   <title>RUSSIAN ROULETTE × NIGHT CITY</title>
 
   <script type="module">
+    // Firebase 10.x (kompatibel & stabil)
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
     import { getDatabase, ref, onValue, set, update, transaction, push, get } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-database.js";
     import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
@@ -33,11 +34,11 @@
     let players = [];
     let gameState = { started: false, bulletPos: -1, currentPos: 0, currentTurn: 0, chambers: 6 };
 
-    signInAnonymously(auth).catch(err => console.error("Anonym Login Fehler:", err));
+    signInAnonymously(auth).catch(err => console.error("Login Fehler:", err));
 
     onAuthStateChanged(auth, u => {
       user = u;
-      if (u) console.log("Eingeloggt als:", u.uid);
+      if (u) console.log("Eingeloggt:", u.uid.substring(0,8) + "...");
     });
 
     function showScreen(id) {
@@ -46,51 +47,46 @@
     }
 
     function createBangParticles() {
-      const container = document.getElementById('particles');
-      for (let i = 0; i < 60; i++) {
+      const c = document.getElementById('particles');
+      for (let i = 0; i < 70; i++) {
         const p = document.createElement('div');
-        p.style.cssText = `
-          position:absolute; width:7px; height:7px; border-radius:50%;
-          background:${['#ff0044','#ffff00','#00ffff'][Math.floor(Math.random()*3)]};
-          left:50%; top:40%; pointer-events:none; transform:translate(-50%,-50%);
-          animation: fly ${0.6 + Math.random()*1}s forwards;
-        `;
-        container.appendChild(p);
-        setTimeout(() => p.remove(), 1800);
+        p.style.cssText = `position:absolute;width:7px;height:7px;border-radius:50%;background:#ff0044;left:50%;top:40%;pointer-events:none;transform:translate(-50%,-50%);animation:fly ${0.6+Math.random()*1.1}s forwards;`;
+        c.appendChild(p);
+        setTimeout(()=>p.remove(), 1800);
       }
     }
 
     // ─── START SCREEN ────────────────────────────────────────────────────────
     const nameInput = document.getElementById('playerName');
-    const startBtn = document.getElementById('startBtn');
-    const gun = document.getElementById('gunIntro');
+    const startBtn  = document.getElementById('startBtn');
+    const gunIntro  = document.getElementById('gunIntro');
 
     if (playerName) nameInput.value = playerName;
 
-    function goToMenu() {
+    function goToMainMenu() {
       playerName = nameInput.value.trim() || `Choom-${Math.floor(Math.random()*9999)}`;
       localStorage.setItem('rr_nickname', playerName);
       showScreen('mainMenu');
     }
 
-    nameInput.addEventListener('keypress', e => {
+    nameInput.addEventListener('keydown', e => {
       if (e.key === 'Enter') {
         e.preventDefault();
-        goToMenu();
+        goToMainMenu();
       }
     });
 
-    startBtn.addEventListener('click', goToMenu);
+    startBtn.addEventListener('click', goToMainMenu);
 
-    gun.addEventListener('click', goToMenu);
+    gunIntro.addEventListener('click', goToMainMenu);
 
-    gun.addEventListener('mouseenter', () => {
-      gun.style.animationDuration = '2.4s';
-      gun.style.filter = 'drop-shadow(0 0 120px #ff0044) brightness(1.4)';
+    gunIntro.addEventListener('mouseenter', () => {
+      gunIntro.style.animationDuration = '2.4s';
+      gunIntro.style.filter = 'drop-shadow(0 0 120px #ff0044) brightness(1.4)';
     });
-    gun.addEventListener('mouseleave', () => {
-      gun.style.animationDuration = '5.8s';
-      gun.style.filter = 'drop-shadow(0 0 80px #ff0044)';
+    gunIntro.addEventListener('mouseleave', () => {
+      gunIntro.style.animationDuration = '5.8s';
+      gunIntro.style.filter = 'drop-shadow(0 0 80px #ff0044)';
     });
 
     // ─── MAIN MENU ───────────────────────────────────────────────────────────
@@ -104,25 +100,21 @@
     };
 
     document.getElementById('joinLobbyBtn').onclick = () => {
-      const code = prompt("Gib den 4-stelligen Lobby-Code ein:").trim().toUpperCase();
-      if (code.length === 4) {
+      const code = prompt("Lobby-Code (4 Zeichen):")?.trim().toUpperCase();
+      if (code && code.length === 4) {
         lobbyCode = code;
         document.getElementById('lobbyCodeDisplay').textContent = lobbyCode;
         isHost = false;
         showScreen('lobbyScreen');
         joinOrCreateLobby();
       } else {
-        alert("Code muss genau 4 Zeichen lang sein!");
+        alert("Code muss genau 4 Zeichen sein!");
       }
     };
 
     // ─── LOBBY LOGIC ─────────────────────────────────────────────────────────
     function joinOrCreateLobby() {
-      if (!user) {
-        console.log("Warte auf Auth...");
-        setTimeout(joinOrCreateLobby, 500);
-        return;
-      }
+      if (!user) return setTimeout(joinOrCreateLobby, 500);
 
       gameRef = ref(db, `lobbies/${lobbyCode}`);
       const playersRef = ref(db, `lobbies/${lobbyCode}/players`);
@@ -130,9 +122,9 @@
       get(playersRef).then(snap => {
         const data = snap.val() || {};
         if (!Object.values(data).some(p => p.uid === user.uid)) {
-          const newPlayerRef = push(playersRef);
-          myPlayerKey = newPlayerRef.key;
-          set(newPlayerRef, {
+          const newRef = push(playersRef);
+          myPlayerKey = newRef.key;
+          set(newRef, {
             name: playerName,
             uid: user.uid,
             alive: true,
@@ -164,7 +156,7 @@
     }
 
     document.getElementById('addKI').onclick = () => {
-      if (!isHost) return;
+      if (!isHost) return alert("Nur Host kann KI hinzufügen");
       const kiRef = push(ref(db, `lobbies/${lobbyCode}/players`));
       set(kiRef, {
         name: `KI-${Math.floor(Math.random()*99)+1}`,
@@ -263,17 +255,21 @@
     };
 
     function checkGameOver() {
-      const aliveCount = players.filter(p => p.alive).length;
-      if (aliveCount <= 1) {
+      const alive = players.filter(p => p.alive).length;
+      if (alive <= 1) {
         setTimeout(() => {
-          const winner = aliveCount === 1 ? players.find(p => p.alive)?.name : 'Unentschieden';
+          const winner = alive === 1 ? players.find(p => p.alive)?.name : 'Unentschieden';
           alert(`Spiel vorbei! Gewinner: ${winner}`);
           location.reload();
         }, 2500);
       }
     }
 
-    setInterval(updateGameUI, 500);
+    setInterval(() => {
+      if (document.getElementById('gameScreen').classList.contains('active')) {
+        updateGameUI();
+      }
+    }, 400);
   </script>
 
   <style>
