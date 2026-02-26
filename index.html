@@ -10,15 +10,22 @@
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
 
 <style>
-body{margin:0;background:#0a0015;color:white;font-family:Courier New,monospace}
+body{margin:0;background:#0a0015;color:white;font-family:Courier New,monospace;overflow:hidden}
 .screen{display:none;position:absolute;inset:0;flex-direction:column;align-items:center;justify-content:center}
 .active{display:flex}
-.title{font-size:4rem;letter-spacing:8px;text-shadow:0 0 20px #00ffff,0 0 40px #ff0044}
+.title{font-size:5vw;letter-spacing:8px;text-shadow:0 0 20px #00ffff,0 0 50px #ff0044;animation:glitch 3s infinite}
+@keyframes glitch{0%{transform:translate(0)}10%{transform:translate(3px,-3px)}20%{transform:translate(-3px,3px)}30%{transform:translate(0)}}
 button{padding:12px 25px;margin:10px;background:transparent;border:2px solid #ff0044;color:#ff0044;cursor:pointer}
 button:hover{background:#ff0044;color:black}
-.player{border:2px solid #c300ff;padding:8px 20px;margin:8px}
-.dead{opacity:.4;text-decoration:line-through}
-#chatBox{width:300px;height:120px;overflow-y:auto;border:2px solid #00ffff;margin-top:10px;padding:5px}
+#playersCircle{position:relative;width:400px;height:400px;margin:20px;}
+.playerCard{position:absolute;width:90px;height:40px;text-align:center;line-height:40px;border:2px solid #c300ff;border-radius:8px;}
+.currentArrow{position:absolute;width:0;height:0;border-left:15px solid transparent;border-right:15px solid transparent;border-bottom:25px solid #ffff66;transform-origin:center bottom;transition:transform 0.5s;}
+.dead{opacity:0.4;text-decoration:line-through}
+#chatBox{width:300px;height:150px;overflow-y:auto;border:2px solid #00ffff;margin-top:10px;padding:5px}
+#chatInput{width:240px;padding:5px;margin-top:5px}
+#particles{position:fixed;inset:0;pointer-events:none;z-index:5}
+#winnerText{position:absolute;top:40%;font-size:4rem;color:#ffff66;text-shadow:0 0 20px #ffff66;display:none;animation:pulse 1s infinite alternate;}
+@keyframes pulse{0%{transform:scale(1)}100%{transform:scale(1.2)}}
 </style>
 </head>
 <body>
@@ -48,6 +55,7 @@ button:hover{background:#ff0044;color:black}
 </select>
 <button id="startBtn">START GAME</button>
 <button onclick="addKI()">+ KI</button>
+<button onclick="leaveLobby()">LEAVE</button>
 <div id="chatBox"></div>
 <input id="chatInput" placeholder="CHAT...">
 <button onclick="sendChat()">SEND</button>
@@ -55,14 +63,24 @@ button:hover{background:#ff0044;color:black}
 
 <div id="game" class="screen">
 <h1 class="title">GAME</h1>
-<div id="gamePlayers"></div>
+<div id="playersCircle"></div>
+<div class="currentArrow" id="currentArrow"></div>
+<div id="gameButtons">
 <button onclick="shoot()">SHOOT</button>
 <button onclick="spin()">SPIN</button>
+<button onclick="giveUp()">GIVE UP</button>
+<button onclick="leaveLobby()">LEAVE</button>
+</div>
+<div id="chatBoxGame"></div>
+<input id="chatInputGame" placeholder="CHAT...">
+<button onclick="sendChatGame()">SEND</button>
+<div id="winnerText"></div>
+<div id="particles"></div>
 </div>
 
 <script>
 const firebaseConfig={
-apiKey:"AIza...",
+apiKey:"AIzaSyBa5w0hQ1v7Nowk-BvDgkGeNRNf1WJtDgw",
 authDomain:"rrweb-dc73f.firebaseapp.com",
 databaseURL:"https://rrweb-dc73f-default-rtdb.europe-west1.firebasedatabase.app",
 projectId:"rrweb-dc73f"
@@ -71,142 +89,116 @@ firebase.initializeApp(firebaseConfig);
 const db=firebase.database();
 const auth=firebase.auth();
 
-let user,name,lobbyCode,myKey,isHost=false,gameRef,players=[],gameState;
+let user,name,lobbyCode,myKey,isHost=false,gameRef,players=[],gameState={};
 
 auth.signInAnonymously();
 auth.onAuthStateChanged(u=>user=u);
 
 function show(id){document.querySelectorAll(".screen").forEach(s=>s.classList.remove("active"));document.getElementById(id).classList.add("active")}
 
-function enterMenu(){
-name=document.getElementById("nameInput").value||"Player";
-show("menu");
-loadServers();
-}
+function enterMenu(){name=document.getElementById("nameInput").value||"Player";show("menu");loadServers();}
+function loadServers(){db.ref("lobbies").on("value",snap=>{let data=snap.val()||{};let list="";for(let code in data){if(data[code].public && data[code].players && Object.keys(data[code].players).length>0){list+=`<div>${code} <button onclick="joinLobby('${code}')">JOIN</button></div>`}}document.getElementById("serverList").innerHTML=list;});}
 
-function loadServers(){
-db.ref("lobbies").on("value",snap=>{
-let data=snap.val()||{};
-let list="";
-for(let code in data){
-if(data[code].public) list+=`<div>${code} <button onclick="joinLobby('${code}')">JOIN</button></div>`;
-}
-document.getElementById("serverList").innerHTML=list;
-});
-}
-
-function createLobby(pub){
-lobbyCode=Math.random().toString(36).slice(2,6).toUpperCase();
-isHost=true;
-setupLobby(pub);
-}
-
-function joinPrivate(){
-let code=prompt("CODE?");
-if(code) joinLobby(code.toUpperCase());
-}
-
-function joinLobby(code){
-lobbyCode=code;
-setupLobby(false);
-}
+function createLobby(pub){lobbyCode=Math.random().toString(36).slice(2,6).toUpperCase();isHost=true;setupLobby(pub);}
+function joinPrivate(){let code=prompt("CODE?");if(code) joinLobby(code.toUpperCase());}
+function joinLobby(code){lobbyCode=code;setupLobby(false);}
 
 function setupLobby(pub){
 show("lobby");
 document.getElementById("codeDisplay").innerText="CODE: "+lobbyCode;
 gameRef=db.ref("lobbies/"+lobbyCode);
+if(isHost) gameRef.set({public:pub, hostUid:user.uid, players:{}});
 
-if(isHost){
-gameRef.set({public:pub,host:user.uid});
-}
-
-let pRef=gameRef.child("players").push();
-myKey=pRef.key;
-
-pRef.set({name,uid:user.uid,alive:true,isKI:false});
+let pRef=gameRef.child("players").push(); myKey=pRef.key;
+pRef.set({name, uid:user.uid, alive:true, isKI:false});
 pRef.onDisconnect().remove();
 
 gameRef.on("value",snap=>{
-let data=snap.val();
-if(!data)return;
+let data=snap.val(); if(!data) return;
 players=Object.entries(data.players||{}).map(([k,v])=>({key:k,...v}));
-gameState=data.gameState;
-updateLobby();
-updateGame();
-updateChat(data.chat||{});
+gameState=data.gameState||{};
+updateLobby(); updateGame(); updateChat(data.chat||{},true);
 });
 }
 
 function updateLobby(){
-document.getElementById("playerList").innerHTML=
-players.map(p=>`<div class="player ${p.alive?'':'dead'}">${p.name}${p.isKI?' 🤖':''}</div>`).join("");
+document.getElementById("playerList").innerHTML=players.map(p=>`<div class="player ${p.alive?'':'dead'}">${p.name}${p.isKI?' 🤖':''}</div>`).join("");
 document.getElementById("startBtn").style.display=isHost?"inline":"none";
 }
 
 document.getElementById("startBtn").onclick=()=>{
 let mod=document.getElementById("modifier").value;
-let chambers=6;
-let bullet=Math.floor(Math.random()*6);
-
-if(mod==="8"){chambers=8;bullet=Math.floor(Math.random()*8)}
-if(mod==="double"){bullet=[Math.floor(Math.random()*6),Math.floor(Math.random()*6)]}
-
+let chambers=6, bullet=Math.floor(Math.random()*6);
+if(mod==="8"){chambers=8; bullet=Math.floor(Math.random()*8);}
+if(mod==="double"){bullet=[Math.floor(Math.random()*6),Math.floor(Math.random()*6)];}
 gameRef.child("gameState").set({turn:0,chambers,bullet,pos:0});
 show("game");
 };
 
 function updateGame(){
-if(!gameState)return;
-document.getElementById("gamePlayers").innerHTML=
-players.map(p=>`<div class="player ${p.alive?'':'dead'}">${p.name}</div>`).join("");
+if(!gameState) return;
+const circle=document.getElementById("playersCircle");
+circle.innerHTML="";
+const n=players.length;
+const radius=150;
+players.forEach((p,i)=>{
+const angle=(2*Math.PI*i/n)-Math.PI/2;
+const x=radius*Math.cos(angle)+radius;
+const y=radius*Math.sin(angle)+radius;
+const div=document.createElement("div");
+div.className="playerCard"+(p.alive?"":" dead");
+div.style.left=x+"px"; div.style.top=y+"px"; div.innerText=p.name;
+circle.appendChild(div);
+});
+// Pfeil auf aktuellen Spieler
+const arrow=document.getElementById("currentArrow");
+if(gameState.turn!=null && players[gameState.turn]){
+let angle=(360/n)*gameState.turn-90;
+arrow.style.transform=`rotate(${angle}deg) translate(180px)`;
+}
+// KI automatisch
+let current=players[gameState.turn]; if(current?.isKI && current.alive){setTimeout(()=>shoot(),1500);}
 }
 
 function shoot(){
 let turnPlayer=players[gameState.turn];
-if(turnPlayer.uid!==user.uid)return;
+if(!turnPlayer) return;
+if(turnPlayer.uid!==user.uid && !turnPlayer.isKI) return;
 
-let pos=gameState.pos+1;
+let pos=(gameState.pos||0)+1;
 let dead=false;
+if(Array.isArray(gameState.bullet)){if(gameState.bullet.includes(pos-1)) dead=true;}else if(pos-1===gameState.bullet) dead=true;
 
-if(Array.isArray(gameState.bullet)){
-if(gameState.bullet.includes(pos-1)) dead=true;
-}else if(pos-1===gameState.bullet) dead=true;
-
-if(dead){
-gameRef.child("players/"+turnPlayer.key).update({alive:false});
-}
-
+if(dead){gameRef.child("players/"+turnPlayer.key).update({alive:false}); createBangParticles();}
 nextTurn(pos);
+checkWinner();
 }
 
-function spin(){
-gameRef.child("gameState/pos").set(Math.floor(Math.random()*gameState.chambers));
+function giveUp(){
+let turnPlayer=players[gameState.turn]; if(!turnPlayer) return;
+gameRef.child("players/"+turnPlayer.key).update({alive:false}); nextTurn(gameState.pos||0); checkWinner();
 }
 
-function nextTurn(pos){
-gameRef.child("gameState").update({pos:pos%gameState.chambers});
+function spin(){gameRef.child("gameState/pos").set(Math.floor(Math.random()*(gameState.chambers||6)));}
+
+function nextTurn(pos){gameRef.child("gameState").update({pos:pos%(gameState.chambers||6)});
 gameRef.child("gameState/turn").transaction(t=>{
-let n=(t+1)%players.length;
-while(!players[n].alive){n=(n+1)%players.length}
-return n;
-});
-}
+let n=(t+1)%players.length; let safety=0;
+while(!players[n].alive && safety<players.length){n=(n+1)%players.length;safety++} return n;});}
 
-function addKI(){
-gameRef.child("players").push({name:"KI-"+Math.floor(Math.random()*100),uid:"ki"+Date.now(),alive:true,isKI:true});
-}
+function addKI(){gameRef.child("players").push({name:"KI-"+Math.floor(Math.random()*100),uid:"ki"+Date.now(),alive:true,isKI:true});}
 
-function sendChat(){
-let text=document.getElementById("chatInput").value;
-if(!text)return;
-gameRef.child("chat").push({name,text});
-document.getElementById("chatInput").value="";
-}
+function sendChat(){let txt=document.getElementById("chatInput").value;if(!txt)return;gameRef.child("chat").push({name, text:txt});document.getElementById("chatInput").value="";}
+function sendChatGame(){let txt=document.getElementById("chatInputGame").value;if(!txt)return;gameRef.child("chat").push({name, text:txt});document.getElementById("chatInputGame").value="";}
+function updateChat(chat, lobby=false){let box=lobby?document.getElementById("chatBox"):document.getElementById("chatBoxGame"); box.innerHTML=Object.values(chat).map(m=>`<div><b>${m.name}:</b> ${m.text}</div>`).join("");}
 
-function updateChat(chat){
-let box=document.getElementById("chatBox");
-box.innerHTML=Object.values(chat).map(m=>`<div><b>${m.name}:</b> ${m.text}</div>`).join("");
-}
+function leaveLobby(){if(myKey) gameRef.child("players/"+myKey).remove(); show("menu"); isHost=false;}
+
+// Todespartikel
+function createBangParticles(){const c=document.getElementById("particles");for(let i=0;i<50;i++){const p=document.createElement("div");p.style.cssText=`position:absolute;width:8px;height:8px;border-radius:50%;background:#ff0044;left:50%;top:50%;transform:translate(-50%,-50%);animation:fly ${0.6+Math.random()}s forwards`;c.appendChild(p);setTimeout(()=>p.remove(),1800);}}
+
+// Gewinnanimation
+function checkWinner(){let alive=players.filter(p=>p.alive); if(alive.length===1){let txt=document.getElementById("winnerText"); txt.innerText=`WINNER: ${alive[0].name}`; txt.style.display="block"; setTimeout(()=>location.reload(),4000);} }
 </script>
 </body>
 </html>
