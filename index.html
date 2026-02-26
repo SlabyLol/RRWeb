@@ -5,242 +5,326 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>RUSSIAN ROULETTE × NIGHT CITY</title>
 
+  <script type="module">
+    // Firebase 12.x modular
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
+    import { getDatabase, ref, onValue, set, update, transaction, push, remove, get } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-database.js";
+    import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-auth.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyBa5w0hQ1v7Nowk-BvDgkGeNRNf1WJtDgw",
+      authDomain: "rrweb-dc73f.firebaseapp.com",
+      projectId: "rrweb-dc73f",
+      storageBucket: "rrweb-dc73f.firebasestorage.app",
+      messagingSenderId: "247426843219",
+      appId: "1:247426843219:web:c466e97fd59ee160c9bca6",
+      databaseURL: "https://rrweb-dc73f-default-rtdb.firebaseio.com/"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+    const auth = getAuth(app);
+
+    let user = null;
+    let playerName = '';
+    let lobbyCode = '';
+    let isHost = false;
+    let myPlayerKey = null;
+    let gameRef = null;
+    let players = [];
+    let gameState = { started: false, bulletPos: -1, currentPos: 0, currentTurn: 0, chambers: 6 };
+
+    onAuthStateChanged(auth, u => { user = u; });
+    signInAnonymously(auth).catch(console.error);
+
+    function showScreen(id) {
+      document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+      document.getElementById(id).classList.add('active');
+    }
+
+    function createBangParticles() {
+      const c = document.getElementById('particles');
+      for (let i = 0; i < 60; i++) {
+        const p = document.createElement('div');
+        p.style = `position:absolute;width:7px;height:7px;border-radius:50%;background:${['#ff2a8c','#00faff','#ffff00'][Math.floor(Math.random()*3)]};left:50%;top:35%;pointer-events:none;transform:translate(-50%,-50%);animation:fly ${0.5+Math.random()*1.2}s forwards;`;
+        c.appendChild(p);
+        setTimeout(()=>p.remove(),1800);
+      }
+    }
+
+    // ─── Start ────────────────────────────────────────
+    const nameInput = document.getElementById('playerName');
+    const connectBtn = document.getElementById('connectBtn');
+    const gunIntro = document.getElementById('gunIntro');
+
+    function goToLobby() {
+      playerName = nameInput.value.trim() || `Ghost-${Math.floor(Math.random()*9999)}`;
+      localStorage.setItem('rr_handle', playerName);
+      showScreen('lobbyScreen');
+      document.getElementById('lobbyPlayerName').textContent = playerName;
+    }
+
+    nameInput.addEventListener('keypress', e => { if (e.key==='Enter') goToLobby(); });
+    connectBtn.onclick = goToLobby;
+    gunIntro.onclick = goToLobby;
+
+    gunIntro.addEventListener('mouseenter', () => gunIntro.style.animationDuration = '2.5s');
+    gunIntro.addEventListener('mouseleave', () => gunIntro.style.animationDuration = '6s');
+
+    // ─── Lobby ────────────────────────────────────────
+    document.getElementById('createLobby').onclick = () => {
+      lobbyCode = Math.random().toString(36).slice(2,6).toUpperCase();
+      document.getElementById('lobbyCodeDisplay').textContent = lobbyCode;
+      document.getElementById('hostBadge').style.display = 'inline';
+      isHost = true;
+      joinLobby();
+    };
+
+    document.getElementById('joinLobbyBtn').onclick = () => {
+      const code = document.getElementById('joinCodeInput').value.trim().toUpperCase();
+      if (code.length !== 4) return alert('4 Zeichen Code!');
+      lobbyCode = code;
+      document.getElementById('lobbyCodeDisplay').textContent = lobbyCode;
+      joinLobby();
+    };
+
+    function joinLobby() {
+      gameRef = ref(db, `lobbies/${lobbyCode}`);
+      const playersRef = ref(db, `lobbies/${lobbyCode}/players`);
+
+      get(playersRef).then(snap => {
+        const data = snap.val() || {};
+        const exists = Object.values(data).some(p => p.uid === user.uid);
+        if (!exists) {
+          const newRef = push(playersRef);
+          myPlayerKey = newRef.key;
+          set(newRef, { name: playerName, uid: user.uid, alive: true, isKI: false });
+        } else {
+          Object.entries(data).forEach(([k,v]) => { if (v.uid === user.uid) myPlayerKey = k; });
+        }
+
+        onValue(gameRef, snap => {
+          const val = snap.val() || {};
+          players = Object.entries(val.players || {}).map(([k,p]) => ({key:k, ...p}));
+          gameState = { ...gameState, ...(val.gameState || {}) };
+          updateLobbyUI();
+          if (gameState.started) {
+            showScreen('gameScreen');
+            updateGameUI();
+          }
+        });
+      });
+    }
+
+    function updateLobbyUI() {
+      const list = document.getElementById('lobbyPlayers');
+      list.innerHTML = players.map(p => `
+        <div class="player-card ${p.alive?'alive':'dead'}">
+          ${p.name}${p.isKI?' <span style="color:#00faff;">AI</span>':''}
+        </div>
+      `).join('');
+
+      document.getElementById('startGame').disabled = !isHost || players.length < 2;
+    }
+
+    document.getElementById('addKI').onclick = () => {
+      if (!isHost) return;
+      const kiRef = push(ref(db, `lobbies/${lobbyCode}/players`));
+      set(kiRef, {
+        name: `AI-${Math.floor(Math.random()*99)+1}`,
+        uid: `ai_${Date.now()}`,
+        alive: true,
+        isKI: true
+      });
+    };
+
+    document.getElementById('startGame').onclick = () => {
+      if (!isHost) return;
+      update(ref(db, `lobbies/${lobbyCode}/gameState`), {
+        started: true,
+        bulletPos: Math.floor(Math.random()*6),
+        currentPos: 0,
+        currentTurn: 0
+      });
+    };
+
+    // ─── Game ─────────────────────────────────────────
+    function updateGameUI() {
+      const curr = players[gameState.currentTurn] || {name:'?'};
+      document.getElementById('currentTurnDisplay').textContent = `Dran: ${curr.name}`;
+      
+      document.querySelectorAll('.player-card').forEach((el,i)=>{
+        el.classList.toggle('current', i===gameState.currentTurn);
+      });
+
+      const left = gameState.chambers - gameState.currentPos - 1;
+      document.getElementById('status').textContent = left>=0 ? `Noch ${left} Schuss${left!==1?'e':''}...` : 'Trommel leer';
+
+      const myTurn = players[gameState.currentTurn]?.uid === user.uid;
+      document.querySelectorAll('#shoot, #doubleShoot, #giveUp, #spin').forEach(b=>b.disabled=!myTurn);
+
+      if (players[gameState.currentTurn]?.isKI && myTurn) {
+        setTimeout(() => {
+          Math.random()>0.45 ? document.getElementById('shoot').click() : document.getElementById('doubleShoot').click();
+        }, 1200 + Math.random()*2800);
+      }
+    }
+
+    function performShot(multi=1) {
+      document.getElementById('gun').classList.add('shoot');
+      setTimeout(()=>document.getElementById('gun').classList.remove('shoot'),400);
+      createBangParticles();
+
+      let pos = gameState.currentPos;
+      for (let i=0; i<multi; i++) {
+        pos = (pos + 1) % gameState.chambers;
+        if (pos === gameState.bulletPos) {
+          const loserKey = players[gameState.currentTurn].key;
+          update(ref(db, `lobbies/${lobbyCode}/players/${loserKey}`), {alive:false});
+          document.getElementById('status').textContent = `BANG! ${players[gameState.currentTurn].name} tot!`;
+          checkGameOver();
+          return;
+        }
+      }
+
+      update(ref(db, `lobbies/${lobbyCode}/gameState`), {currentPos: pos});
+      transaction(ref(db, `lobbies/${lobbyCode}/gameState/currentTurn`), t => {
+        let n = (t + 1) % players.length;
+        while (!players[n]?.alive) n = (n + 1) % players.length;
+        return n;
+      });
+    }
+
+    document.getElementById('shoot').onclick       = () => performShot(1);
+    document.getElementById('doubleShoot').onclick = () => performShot(2);
+    document.getElementById('giveUp').onclick = () => {
+      const key = players[gameState.currentTurn].key;
+      update(ref(db, `lobbies/${lobbyCode}/players/${key}`), {alive:false});
+      document.getElementById('status').textContent = `${players[gameState.currentTurn].name} gibt auf...`;
+      checkGameOver();
+    };
+
+    document.getElementById('spin').onclick = () => {
+      update(ref(db, `lobbies/${lobbyCode}/gameState`), {
+        bulletPos: Math.floor(Math.random()*6),
+        currentPos: 0
+      });
+    };
+
+    function checkGameOver() {
+      const alive = players.filter(p=>p.alive).length;
+      if (alive <= 1) {
+        setTimeout(()=>{
+          alert(alive===1 ? `Gewinner: ${players.find(p=>p.alive)?.name || '?'}` : 'Unentschieden');
+          location.reload();
+        }, 2200);
+      }
+    }
+
+    document.getElementById('gun').onclick = () => {
+      if (!document.getElementById('shoot').disabled) document.getElementById('shoot').click();
+    };
+
+    setInterval(updateGameUI, 400);
+  </script>
+
   <style>
     :root {
-      --neon-pink: #ff2a8c;
-      --neon-cyan: #00faff;
-      --neon-purple: #c300ff;
-      --dark: #0b0014;
-      --dark2: #140028;
+      --pink: #ff2a8c; --cyan: #00faff; --purple: #c300ff; --dark: #0b0014;
     }
-
-    * { margin:0; padding:0; box-sizing:border-box; }
-
     body {
-      height: 100vh;
-      background: var(--dark);
-      color: #e0f8ff;
-      font-family: 'Courier New', Consolas, monospace;
-      overflow: hidden;
-      position: relative;
-      background-image:
-        radial-gradient(circle at 10% 20%, rgba(195,0,255,0.08) 0%, transparent 25%),
-        radial-gradient(circle at 90% 80%, rgba(0,250,255,0.06) 0%, transparent 30%);
+      margin:0; height:100vh; background:#0b0014; color:#e0f8ff; font-family:'Courier New',monospace; overflow:hidden;
+      background-image: radial-gradient(circle at 15% 25%, rgba(195,0,255,0.07) 0%, transparent 30%),
+                        radial-gradient(circle at 85% 75%, rgba(0,250,255,0.05) 0%, transparent 35%);
     }
-
     body::before {
-      content: "";
-      position: fixed;
-      inset: 0;
-      background: repeating-linear-gradient(
-        0deg,
-        transparent,
-        transparent 2px,
-        rgba(0,0,0,0.45) 2px,
-        rgba(0,0,0,0.45) 4px
-      );
-      pointer-events: none;
-      z-index: 9998;
-      animation: scanline 10s linear infinite;
+      content:""; position:fixed; inset:0;
+      background: repeating-linear-gradient(transparent 0 2px, rgba(0,0,0,0.5) 2px 4px);
+      animation: scan 12s linear infinite; pointer-events:none; z-index:9999;
     }
+    @keyframes scan { 0%{transform:translateY(-100%)} 100%{transform:translateY(100%)} }
 
-    @keyframes scanline {
-      0% { transform: translateY(-100%); }
-      100% { transform: translateY(100%); }
-    }
-
-    .screen {
-      position: absolute;
-      inset: 0;
-      display: none;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      padding: 20px;
-      z-index: 10;
-    }
-
-    .screen.active { display: flex; }
+    .screen { position:absolute; inset:0; display:none; flex-direction:column; align-items:center; justify-content:center; z-index:10; }
+    .screen.active { display:flex; }
 
     .title-glitch {
-      font-size: clamp(3.5rem, 12vw, 7.5rem);
-      font-weight: 900;
-      text-transform: uppercase;
-      letter-spacing: 0.4em;
-      color: white;
-      text-shadow:
-        0 0 10px var(--neon-cyan),
-        0 0 30px var(--neon-cyan),
-        0 0 60px var(--neon-pink),
-        0 0 100px var(--neon-pink);
-      position: relative;
-      animation: glitch-main 5s infinite;
-      margin-bottom: 0.3em;
+      font-size: clamp(4rem,14vw,9rem); font-weight:900; text-transform:uppercase; letter-spacing:0.5em;
+      color:white; text-shadow:0 0 15px var(--cyan), 0 0 40px var(--pink), 0 0 80px var(--pink);
+      position:relative; animation:glitch 6s infinite;
     }
-
-    .title-glitch::before,
-    .title-glitch::after {
-      content: attr(data-text);
-      position: absolute;
-      top: 0; left: 0;
-      width: 100%; height: 100%;
-      background: var(--dark);
-      clip: rect(0, 9999px, 0, 0);
-      overflow: hidden;
+    .title-glitch::before, .title-glitch::after {
+      content:attr(data-text); position:absolute; inset:0; background:var(--dark); clip:rect(0,9999px,0,0);
     }
+    .title-glitch::before { left:3px; text-shadow:-5px 0 var(--pink); animation:glitch1 2s infinite alternate-reverse; }
+    .title-glitch::after  { left:-3px; text-shadow:5px 0 var(--cyan);  animation:glitch2 3s infinite alternate-reverse; }
 
-    .title-glitch::before {
-      left: 2px;
-      text-shadow: -4px 0 var(--neon-pink);
-      animation: glitch-top 1.8s infinite linear alternate-reverse;
-    }
+    @keyframes glitch { 0%,100%{transform:translate(0)} 2%,6%,10%{transform:translate(4px,-4px)} }
+    @keyframes glitch1 { 0%{clip:rect(20px,9999px,50px,0)} 20%{clip:rect(70px,9999px,110px,0)} 40%{clip:rect(5px,9999px,45px,0)} 60%{clip:rect(85px,9999px,135px,0)} 100%{clip:rect(35px,9999px,75px,0)} }
+    @keyframes glitch2 { 0%{clip:rect(65px,9999px,105px,0)} 25%{clip:rect(15px,9999px,55px,0)} 50%{clip:rect(95px,9999px,145px,0)} 75%{clip:rect(45px,9999px,85px,0)} 100%{clip:rect(0px,9999px,40px,0)} }
 
-    .title-glitch::after {
-      left: -2px;
-      text-shadow: 4px 0 var(--neon-cyan);
-      animation: glitch-bottom 2.4s infinite linear alternate-reverse;
-    }
+    .gun-intro { font-size:clamp(10rem,30vw,22rem); filter:drop-shadow(0 0 80px var(--pink)) drop-shadow(0 0 140px var(--cyan)); animation:breath 7s ease-in-out infinite; cursor:pointer; margin:40px 0; }
+    @keyframes breath { 0%,100%{transform:scale(1) rotate(-12deg)} 50%{transform:scale(1.07) rotate(12deg)} }
 
-    @keyframes glitch-main {
-      0%, 4%, 8%, 12%, 100% { transform: translate(0); }
-      2%, 6%, 10% { transform: translate(3px, -3px); }
-    }
+    input, .btn { padding:18px 40px; font-size:1.6rem; margin:20px; border:3px solid; background:transparent; color:inherit; font-family:inherit; cursor:pointer; transition:all 0.3s; }
+    input { border-color:var(--cyan); box-shadow:0 0 35px rgba(0,250,255,0.4); width:380px; max-width:90%; text-align:center; }
+    input:focus { border-color:var(--pink); box-shadow:0 0 60px rgba(255,42,140,0.7); outline:none; }
+    .btn { border-color:var(--pink); color:var(--pink); box-shadow:0 0 30px rgba(255,42,140,0.5); }
+    .btn:hover { background:var(--pink); color:black; box-shadow:0 0 70px var(--pink); transform:translateY(-5px); }
 
-    @keyframes glitch-top {
-      0% { clip: rect(30px, 9999px, 60px, 0); }
-      20% { clip: rect(80px, 9999px, 120px, 0); }
-      40% { clip: rect(10px, 9999px, 50px, 0); }
-      60% { clip: rect(90px, 9999px, 140px, 0); }
-      80% { clip: rect(40px, 9999px, 80px, 0); }
-      100% { clip: rect(20px, 9999px, 70px, 0); }
-    }
+    .player-card { background:rgba(30,0,60,0.6); border:2px solid var(--purple); padding:14px 28px; margin:10px; min-width:160px; text-align:center; box-shadow:0 0 25px rgba(195,0,255,0.4); transition:all 0.3s; }
+    .player-card.alive:hover { transform:scale(1.08); border-color:var(--cyan); }
+    .player-card.current { animation:pulse 1.4s infinite; border-color:#ffff00; box-shadow:0 0 40px #ffff0080; }
 
-    @keyframes glitch-bottom {
-      0% { clip: rect(70px, 9999px, 110px, 0); }
-      20% { clip: rect(20px, 9999px, 60px, 0); }
-      40% { clip: rect(100px, 9999px, 150px, 0); }
-      60% { clip: rect(50px, 9999px, 90px, 0); }
-      80% { clip: rect(0px, 9999px, 40px, 0); }
-      100% { clip: rect(60px, 9999px, 100px, 0); }
-    }
+    #gun { font-size:180px; transform:rotate(-15deg); filter:drop-shadow(0 0 40px var(--pink)); transition:all 0.4s; cursor:pointer; }
+    #gun.shoot { transform:rotate(-15deg) translateY(-40px) scale(1.18); filter:drop-shadow(0 0 80px #ff0044) brightness(1.6); }
 
-    .gun-intro {
-      font-size: clamp(8rem, 25vw, 18rem);
-      filter: drop-shadow(0 0 60px var(--neon-pink)) drop-shadow(0 0 120px var(--neon-cyan));
-      animation: revolver-breath 6s ease-in-out infinite;
-      margin: 30px 0 50px;
-      cursor: pointer;
-      user-select: none;
-    }
+    #status { font-size:2.2rem; margin:30px 0; text-shadow:0 0 20px currentColor; min-height:60px; text-align:center; }
 
-    @keyframes revolver-breath {
-      0%,100% { transform: scale(1) rotate(-8deg); }
-      50%     { transform: scale(1.06) rotate(8deg); }
-    }
-
-    input[type="text"] {
-      padding: 18px 30px;
-      font-size: 1.6rem;
-      width: 360px;
-      max-width: 90%;
-      background: rgba(20,0,40,0.7);
-      border: 2px solid var(--neon-cyan);
-      color: var(--neon-cyan);
-      text-shadow: 0 0 8px var(--neon-cyan);
-      box-shadow: 0 0 30px rgba(0,250,255,0.3);
-      transition: all 0.3s;
-      font-family: inherit;
-    }
-
-    input[type="text"]:focus {
-      outline: none;
-      border-color: var(--neon-pink);
-      box-shadow: 0 0 50px rgba(255,42,140,0.6);
-    }
-
-    .btn-neon {
-      padding: 18px 50px;
-      font-size: 1.5rem;
-      margin: 20px 15px;
-      background: transparent;
-      border: 3px solid var(--neon-pink);
-      color: var(--neon-pink);
-      text-shadow: 0 0 12px var(--neon-pink);
-      box-shadow: 0 0 25px rgba(255,42,140,0.5);
-      cursor: pointer;
-      transition: all 0.35s;
-      font-weight: bold;
-      letter-spacing: 2px;
-    }
-
-    .btn-neon:hover {
-      background: var(--neon-pink);
-      color: black;
-      box-shadow: 0 0 60px var(--neon-pink);
-      transform: translateY(-4px);
-    }
-
-    .btn-cyan { border-color: var(--neon-cyan); color: var(--neon-cyan); text-shadow: 0 0 12px var(--neon-cyan); }
-    .btn-cyan:hover { background: var(--neon-cyan); color: black; box-shadow: 0 0 60px var(--neon-cyan); }
-
-    /* Restliches CSS für Lobby & Game kannst du aus vorheriger Version übernehmen */
+    @keyframes pulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.06)} }
+    @keyframes fly { to { transform:translate(${Math.random()*800-400}px, ${Math.random()*800-400}px) scale(0.2); opacity:0; } }
   </style>
 </head>
 <body>
 
+<div id="particles"></div>
+
 <div id="nameScreen" class="screen active">
   <h1 class="title-glitch" data-text="RUSSIAN ROULETTE">RUSSIAN ROULETTE</h1>
   <div class="gun-intro" id="gunIntro">🔫</div>
-  <input type="text" id="playerName" placeholder="DEIN HANDLE / NICKNAME" maxlength="16" autofocus>
-  <div>
-    <button class="btn-neon btn-cyan" id="connectBtn">CONNECT TO NET</button>
+  <input id="playerName" placeholder="DEIN HANDLE" maxlength="16" autofocus>
+  <button class="btn" id="connectBtn">CONNECT TO NET</button>
+</div>
+
+<div id="lobbyScreen" class="screen">
+  <h1 class="title-glitch" data-text="LOBBY">LOBBY</h1>
+  <div style="font-size:3.5rem; color:var(--pink); margin:20px;" id="lobbyCodeDisplay">----</div>
+  <div id="hostBadge" style="color:var(--cyan); font-size:1.8rem; display:none;">YOU ARE HOST</div>
+  <div style="margin:30px 0; font-size:1.6rem;">Spieler: <span id="lobbyPlayerName">...</span></div>
+  <div id="lobbyPlayers" style="display:flex; flex-wrap:wrap; justify-content:center; max-width:90%;"></div>
+  <div style="margin-top:50px;">
+    <button class="btn" id="createLobby">CREATE LOBBY</button>
+    <button class="btn" id="joinLobbyBtn">JOIN LOBBY</button>
+    <input id="joinCodeInput" placeholder="CODE" maxlength="4" style="width:140px; font-size:2rem; text-align:center;">
+    <button class="btn" id="addKI">+ KI</button>
+    <button class="btn" id="startGame" disabled>START GAME</button>
   </div>
 </div>
 
-<!-- Hier kommen lobbyScreen und gameScreen rein – wie in vorheriger Version -->
-
-<script>
-// ────────────────────────────────────────────────
-// Sehr simpler Einstieg – alle Wege funktionieren
-// ────────────────────────────────────────────────
-
-const nameInput = document.getElementById('playerName');
-const connectBtn = document.getElementById('connectBtn');
-const gunIntro = document.getElementById('gunIntro');
-
-function goToLobby() {
-  const name = nameInput.value.trim();
-  if (!name) {
-    alert("Gib wenigstens einen Namen ein, Choomba!");
-    nameInput.focus();
-    return;
-  }
-  // Hier könntest du den Namen speichern, z.B. localStorage oder direkt in Variable
-  localStorage.setItem('rr_nickname', name);
-  document.getElementById('nameScreen').classList.remove('active');
-  document.getElementById('lobbyScreen').classList.add('active');
-  // Optional: Sound oder Animation triggern
-}
-
-// Enter drücken im Input
-nameInput.addEventListener('keypress', e => {
-  if (e.key === 'Enter') goToLobby();
-});
-
-// Button klicken
-connectBtn.onclick = goToLobby;
-
-// Gun anklicken → auch starten
-gunIntro.onclick = goToLobby;
-
-// Optional: Gun vibriert beim Hover
-gunIntro.addEventListener('mouseenter', () => {
-  gunIntro.style.animationDuration = '2s';
-});
-gunIntro.addEventListener('mouseleave', () => {
-  gunIntro.style.animationDuration = '6s';
-});
-</script>
+<div id="gameScreen" class="screen">
+  <h1 class="title-glitch" data-text="GAME ON">GAME ON</h1>
+  <div id="currentTurnDisplay" style="font-size:3rem; color:#ffff00; margin:20px; text-shadow:0 0 30px #ffff00;">Dran: ...</div>
+  <div style="position:relative;">
+    <div id="gun">🔫</div>
+  </div>
+  <div id="status" style="color:#00faff;">Warte auf Start...</div>
+  <div id="gamePlayers" style="display:flex; flex-wrap:wrap; justify-content:center; margin:30px 0;"></div>
+  <div style="margin-top:40px;">
+    <button class="btn" id="spin">SPIN CHAMBER</button>
+    <button class="btn" id="shoot">SHOOT ×1</button>
+    <button class="btn" id="doubleShoot">SHOOT ×2 ⚡</button>
+    <button class="btn" id="giveUp" style="background:rgba(180,0,0,0.3); border-color:#ff0044; color:#ff6666;">GIVE UP</button>
+  </div>
+</div>
 
 </body>
 </html>
