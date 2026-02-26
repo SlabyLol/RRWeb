@@ -10,226 +10,202 @@
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
 
 <style>
-:root{
---pink:#ff0044;
---cyan:#00ffff;
---purple:#c300ff;
---bg:#0a0015;
-}
-body{
-margin:0;
-background:var(--bg);
-color:white;
-font-family:Courier New,monospace;
-overflow:hidden;
-}
-.screen{
-position:absolute;
-inset:0;
-display:none;
-flex-direction:column;
-align-items:center;
-justify-content:center;
-}
-.active{display:flex;}
-
-.title{
-font-size:6vw;
-letter-spacing:8px;
-text-shadow:0 0 20px var(--cyan),0 0 50px var(--pink);
-animation:glitch 3s infinite;
-}
-@keyframes glitch{
-0%{transform:translate(0)}
-10%{transform:translate(3px,-3px)}
-20%{transform:translate(-3px,3px)}
-30%{transform:translate(0)}
-}
-
-button{
-padding:15px 40px;
-margin:15px;
-font-size:1.2rem;
-background:transparent;
-color:var(--pink);
-border:2px solid var(--pink);
-cursor:pointer;
-transition:0.2s;
-}
-button:hover{
-background:var(--pink);
-color:black;
-}
-
-.player-card{
-border:2px solid var(--purple);
-padding:10px 25px;
-margin:10px;
-min-width:140px;
-text-align:center;
-}
-.dead{
-opacity:0.4;
-text-decoration:line-through;
-}
-
-#players{
-display:flex;
-flex-wrap:wrap;
-justify-content:center;
-}
+body{margin:0;background:#0a0015;color:white;font-family:Courier New,monospace}
+.screen{display:none;position:absolute;inset:0;flex-direction:column;align-items:center;justify-content:center}
+.active{display:flex}
+.title{font-size:4rem;letter-spacing:8px;text-shadow:0 0 20px #00ffff,0 0 40px #ff0044}
+button{padding:12px 25px;margin:10px;background:transparent;border:2px solid #ff0044;color:#ff0044;cursor:pointer}
+button:hover{background:#ff0044;color:black}
+.player{border:2px solid #c300ff;padding:8px 20px;margin:8px}
+.dead{opacity:.4;text-decoration:line-through}
+#chatBox{width:300px;height:120px;overflow-y:auto;border:2px solid #00ffff;margin-top:10px;padding:5px}
 </style>
 </head>
 <body>
 
 <div id="start" class="screen active">
-<h1 class="title">RUSSIAN ROULETTE</h1>
-<input id="nameInput" placeholder="DEIN NAME">
-<button id="goMenu">ENTER</button>
+<h1 class="title">NIGHT CITY</h1>
+<input id="nameInput" placeholder="NAME">
+<button onclick="enterMenu()">ENTER</button>
 </div>
 
 <div id="menu" class="screen">
-<h1 class="title">NIGHT CITY</h1>
-<button id="createLobby">CREATE LOBBY</button>
-<button id="joinLobby">JOIN LOBBY</button>
+<h2>SERVER LIST</h2>
+<div id="serverList"></div>
+<button onclick="createLobby(true)">CREATE PUBLIC</button>
+<button onclick="createLobby(false)">CREATE PRIVATE</button>
+<button onclick="joinPrivate()">JOIN PRIVATE</button>
 </div>
 
 <div id="lobby" class="screen">
 <h1 class="title">LOBBY</h1>
-<div id="lobbyCode" style="font-size:2rem;margin:20px"></div>
-<div id="players"></div>
-<button id="addKI">+ KI</button>
-<button id="startGame">START</button>
-<button id="shootBtn">SHOOT</button>
+<div id="codeDisplay"></div>
+<div id="playerList"></div>
+<select id="modifier">
+<option value="6">6 CHAMBERS</option>
+<option value="8">8 CHAMBERS</option>
+<option value="double">DOUBLE BULLET</option>
+</select>
+<button id="startBtn">START GAME</button>
+<button onclick="addKI()">+ KI</button>
+<div id="chatBox"></div>
+<input id="chatInput" placeholder="CHAT...">
+<button onclick="sendChat()">SEND</button>
+</div>
+
+<div id="game" class="screen">
+<h1 class="title">GAME</h1>
+<div id="gamePlayers"></div>
+<button onclick="shoot()">SHOOT</button>
+<button onclick="spin()">SPIN</button>
 </div>
 
 <script>
 const firebaseConfig={
-apiKey:"AIzaSyBa5w0hQ1v7Nowk-BvDgkGeNRNf1WJtDgw",
+apiKey:"AIza...",
 authDomain:"rrweb-dc73f.firebaseapp.com",
 databaseURL:"https://rrweb-dc73f-default-rtdb.europe-west1.firebasedatabase.app",
 projectId:"rrweb-dc73f"
 };
-
 firebase.initializeApp(firebaseConfig);
 const db=firebase.database();
 const auth=firebase.auth();
 
-let user,playerName,lobbyCode,myKey;
-let gameRef,players=[],gameState;
+let user,name,lobbyCode,myKey,isHost=false,gameRef,players=[],gameState;
 
 auth.signInAnonymously();
 auth.onAuthStateChanged(u=>user=u);
 
-function show(id){
-document.querySelectorAll(".screen").forEach(s=>s.classList.remove("active"));
-document.getElementById(id).classList.add("active");
+function show(id){document.querySelectorAll(".screen").forEach(s=>s.classList.remove("active"));document.getElementById(id).classList.add("active")}
+
+function enterMenu(){
+name=document.getElementById("nameInput").value||"Player";
+show("menu");
+loadServers();
 }
 
-document.getElementById("goMenu").onclick=()=>{
-playerName=document.getElementById("nameInput").value||"Player";
-show("menu");
-};
+function loadServers(){
+db.ref("lobbies").on("value",snap=>{
+let data=snap.val()||{};
+let list="";
+for(let code in data){
+if(data[code].public) list+=`<div>${code} <button onclick="joinLobby('${code}')">JOIN</button></div>`;
+}
+document.getElementById("serverList").innerHTML=list;
+});
+}
 
-document.getElementById("createLobby").onclick=()=>{
+function createLobby(pub){
 lobbyCode=Math.random().toString(36).slice(2,6).toUpperCase();
-enterLobby();
-};
+isHost=true;
+setupLobby(pub);
+}
 
-document.getElementById("joinLobby").onclick=()=>{
-lobbyCode=prompt("LOBBY CODE?");
-if(lobbyCode) enterLobby();
-};
+function joinPrivate(){
+let code=prompt("CODE?");
+if(code) joinLobby(code.toUpperCase());
+}
 
-function enterLobby(){
+function joinLobby(code){
+lobbyCode=code;
+setupLobby(false);
+}
+
+function setupLobby(pub){
 show("lobby");
-document.getElementById("lobbyCode").innerText="CODE: "+lobbyCode;
+document.getElementById("codeDisplay").innerText="CODE: "+lobbyCode;
 gameRef=db.ref("lobbies/"+lobbyCode);
 
-const playersRef=gameRef.child("players");
-const newRef=playersRef.push();
-myKey=newRef.key;
+if(isHost){
+gameRef.set({public:pub,host:user.uid});
+}
 
-newRef.set({
-name:playerName,
-uid:user.uid,
-alive:true,
-isKI:false
-});
+let pRef=gameRef.child("players").push();
+myKey=pRef.key;
 
-newRef.onDisconnect().remove();
+pRef.set({name,uid:user.uid,alive:true,isKI:false});
+pRef.onDisconnect().remove();
 
 gameRef.on("value",snap=>{
-const data=snap.val();
+let data=snap.val();
 if(!data)return;
-
-players=Object.entries(data.players||{})
-.map(([k,v])=>({key:k,...v}));
-
+players=Object.entries(data.players||{}).map(([k,v])=>({key:k,...v}));
 gameState=data.gameState;
-updateUI();
+updateLobby();
+updateGame();
+updateChat(data.chat||{});
 });
 }
 
-function updateUI(){
-document.getElementById("players").innerHTML=
-players.map(p=>{
-return `<div class="player-card ${p.alive?'':'dead'}">
-${p.name}${p.isKI?' 🤖':''}
-</div>`;
-}).join("");
+function updateLobby(){
+document.getElementById("playerList").innerHTML=
+players.map(p=>`<div class="player ${p.alive?'':'dead'}">${p.name}${p.isKI?' 🤖':''}</div>`).join("");
+document.getElementById("startBtn").style.display=isHost?"inline":"none";
+}
 
+document.getElementById("startBtn").onclick=()=>{
+let mod=document.getElementById("modifier").value;
+let chambers=6;
+let bullet=Math.floor(Math.random()*6);
+
+if(mod==="8"){chambers=8;bullet=Math.floor(Math.random()*8)}
+if(mod==="double"){bullet=[Math.floor(Math.random()*6),Math.floor(Math.random()*6)]}
+
+gameRef.child("gameState").set({turn:0,chambers,bullet,pos:0});
+show("game");
+};
+
+function updateGame(){
 if(!gameState)return;
-
-const current=players[gameState.turn];
-if(current?.isKI && current.alive){
-setTimeout(()=>doShoot(),1500);
-}
+document.getElementById("gamePlayers").innerHTML=
+players.map(p=>`<div class="player ${p.alive?'':'dead'}">${p.name}</div>`).join("");
 }
 
-document.getElementById("addKI").onclick=()=>{
-gameRef.child("players").push({
-name:"KI-"+Math.floor(Math.random()*100),
-uid:"ki"+Date.now(),
-alive:true,
-isKI:true
-});
-};
+function shoot(){
+let turnPlayer=players[gameState.turn];
+if(turnPlayer.uid!==user.uid)return;
 
-document.getElementById("startGame").onclick=()=>{
-gameRef.child("gameState").set({
-turn:0,
-chambers:6,
-bullet:Math.floor(Math.random()*6),
-pos:0
-});
-};
-
-document.getElementById("shootBtn").onclick=()=>{
-if(!gameState)return;
-const current=players[gameState.turn];
-if(current.uid!==user.uid)return;
-doShoot();
-};
-
-function doShoot(){
 let pos=gameState.pos+1;
+let dead=false;
 
-if(pos-1===gameState.bullet){
-const deadKey=players[gameState.turn].key;
-gameRef.child("players/"+deadKey).update({alive:false});
+if(Array.isArray(gameState.bullet)){
+if(gameState.bullet.includes(pos-1)) dead=true;
+}else if(pos-1===gameState.bullet) dead=true;
+
+if(dead){
+gameRef.child("players/"+turnPlayer.key).update({alive:false});
 }
 
-gameRef.child("gameState/pos").set(pos%6);
-
-gameRef.child("gameState/turn")
-.transaction(t=>{
-let next=(t+1)%players.length;
-while(!players[next].alive){
-next=(next+1)%players.length;
+nextTurn(pos);
 }
-return next;
+
+function spin(){
+gameRef.child("gameState/pos").set(Math.floor(Math.random()*gameState.chambers));
+}
+
+function nextTurn(pos){
+gameRef.child("gameState").update({pos:pos%gameState.chambers});
+gameRef.child("gameState/turn").transaction(t=>{
+let n=(t+1)%players.length;
+while(!players[n].alive){n=(n+1)%players.length}
+return n;
 });
+}
+
+function addKI(){
+gameRef.child("players").push({name:"KI-"+Math.floor(Math.random()*100),uid:"ki"+Date.now(),alive:true,isKI:true});
+}
+
+function sendChat(){
+let text=document.getElementById("chatInput").value;
+if(!text)return;
+gameRef.child("chat").push({name,text});
+document.getElementById("chatInput").value="";
+}
+
+function updateChat(chat){
+let box=document.getElementById("chatBox");
+box.innerHTML=Object.values(chat).map(m=>`<div><b>${m.name}:</b> ${m.text}</div>`).join("");
 }
 </script>
 </body>
