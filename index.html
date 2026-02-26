@@ -5,196 +5,253 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>RUSSIAN ROULETTE × NIGHT CITY</title>
 
-  <script type="module">
-    // Firebase Imports
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
-    import { getDatabase, ref, onValue, set, update, transaction, push, get } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-database.js";
-    import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-auth.js";
-
-    const firebaseConfig = {
-      apiKey: "AIzaSyBa5w0hQ1v7Nowk-BvDgkGeNRNf1WJtDgw",
-      authDomain: "rrweb-dc73f.firebaseapp.com",
-      projectId: "rrweb-dc73f",
-      storageBucket: "rrweb-dc73f.firebasestorage.app",
-      messagingSenderId: "247426843219",
-      appId: "1:247426843219:web:c466e97fd59ee160c9bca6",
-      databaseURL: "https://rrweb-dc73f-default-rtdb.firebaseio.com/"
-    };
-
-    const app = initializeApp(firebaseConfig);
-    const db = getDatabase(app);
-    const auth = getAuth(app);
-
-    let user = null;
-    let playerName = localStorage.getItem('rr_handle') || '';
-    let lobbyCode = '';
-    let isHost = false;
-    let myPlayerKey = null;
-    let gameRef = null;
-    let players = [];
-    let gameState = { started: false, bulletPos: -1, currentPos: 0, currentTurn: 0, chambers: 6 };
-
-    // Auth initialisieren
-    signInAnonymously(auth).catch(err => console.error("Login Fehler:", err));
-
-    onAuthStateChanged(auth, u => {
-      user = u;
-      console.log("Auth ready:", user ? user.uid : "noch nicht");
-    });
-
-    function showScreen(id) {
-      document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-      document.getElementById(id).classList.add('active');
-    }
-
-    function createBangParticles() {
-      const c = document.getElementById('particles');
-      for (let i = 0; i < 60; i++) {
-        const p = document.createElement('div');
-        p.style.cssText = `position:absolute;width:8px;height:8px;border-radius:50%;background:#ff2a8c;left:50%;top:40%;pointer-events:none;transform:translate(-50%,-50%);animation:fly ${0.6+Math.random()}s forwards;`;
-        c.appendChild(p);
-        setTimeout(()=>p.remove(), 1600);
-      }
-    }
-
-    // ─── START SCREEN ──────────────────────────────────────
-    const nameInput  = document.getElementById('playerName');
-    const startBtn   = document.getElementById('startButton');
-    const gunClick   = document.getElementById('gunClick');
-
-    if (playerName) nameInput.value = playerName;
-
-    function goToLobby() {
-      playerName = nameInput.value.trim() || `Anon-${Math.floor(Math.random()*9999)}`;
-      localStorage.setItem('rr_handle', playerName);
-      console.log("→ Lobby mit:", playerName);
-      showScreen('lobbyScreen');
-      document.getElementById('lobbyPlayerName').textContent = playerName;
-    }
-
-    // Events – robust & verhindert Doppel-Ausführung
-    nameInput.addEventListener('keypress', e => {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        goToLobby();
-      }
-    });
-
-    startBtn.addEventListener('click', e => {
-      e.preventDefault();
-      goToLobby();
-    });
-
-    gunClick.addEventListener('click', goToLobby);
-
-    gunClick.addEventListener('mouseenter', () => gunClick.style.animationDuration = '2.2s');
-    gunClick.addEventListener('mouseleave', () => gunClick.style.animationDuration = '5.5s');
-
-    // ─── LOBBY & SPIEL ─────────────────────────────────────
-    // (Rest deines Codes – nur die kritischen Stellen angepasst)
-
-    document.getElementById('createLobby').onclick = () => {
-      lobbyCode = Math.random().toString(36).slice(2,6).toUpperCase();
-      document.getElementById('lobbyCodeDisplay').textContent = lobbyCode;
-      isHost = true;
-      joinLobby();
-    };
-
-    document.getElementById('joinLobbyBtn').onclick = () => {
-      const code = document.getElementById('joinCodeInput').value.trim().toUpperCase();
-      if (code.length !== 4) return alert('4 Zeichen Code!');
-      lobbyCode = code;
-      document.getElementById('lobbyCodeDisplay').textContent = lobbyCode;
-      joinLobby();
-    };
-
-    function joinLobby() {
-      if (!user) {
-        console.log("Warte auf Auth...");
-        setTimeout(joinLobby, 600);
-        return;
-      }
-
-      gameRef = ref(db, `lobbies/${lobbyCode}`);
-      const playersRef = ref(db, `lobbies/${lobbyCode}/players`);
-
-      get(playersRef).then(snap => {
-        const data = snap.val() || {};
-        if (!Object.values(data).some(p => p.uid === user.uid)) {
-          const newRef = push(playersRef);
-          myPlayerKey = newRef.key;
-          set(newRef, { name: playerName, uid: user.uid, alive: true, isKI: false });
-        }
-
-        onValue(gameRef, snap => {
-          const val = snap.val() || {};
-          players = Object.entries(val.players || {}).map(([k,v]) => ({key:k, ...v}));
-          gameState = {...gameState, ...(val.gameState || {})};
-          updateUI();
-        });
-      }).catch(e => console.error("Join Fehler:", e));
-    }
-
-    function updateUI() {
-      document.getElementById('lobbyPlayers').innerHTML = players.map(p => `
-        <div class="player-card">${p.name}${p.isKI ? ' (KI)' : ''}</div>
-      `).join('');
-
-      document.getElementById('startGame').disabled = !isHost || players.length < 2;
-
-      if (gameState.started) {
-        showScreen('gameScreen');
-        updateGameUI();
-      }
-    }
-
-    // ─── Game-Logik (gekürzt – erweitere bei Bedarf) ───────
-    function updateGameUI() {
-      // Deine volle Update-Logik hier...
-      console.log("Game UI update");
-    }
-
-    // Weitere Funktionen (shoot, spin, etc.) aus früheren Versionen einfügen
-  </script>
-
   <style>
-    body { margin:0; height:100vh; background:#0a0012; color:#e0f8ff; font-family:'Courier New',monospace; overflow:hidden; }
-    .screen { position:absolute; inset:0; display:none; flex-direction:column; align-items:center; justify-content:center; z-index:10; }
-    .screen.active { display:flex; }
+    :root {
+      --neon-pink:   #ff1a75;
+      --neon-cyan:   #00ffff;
+      --neon-purple: #c300ff;
+      --dark:        #0a0015;
+      --dark2:       #120025;
+    }
 
-    .title { font-size: clamp(5rem, 14vw, 10rem); color:#fff; text-shadow:0 0 30px #00faff, 0 0 60px #ff2a8c; animation:glitch 4s infinite; }
-    @keyframes glitch { 0%,100%{transform:translate(0)} 2%,6%{transform:translate(3px,-3px)} }
+    * { margin:0; padding:0; box-sizing:border-box; }
 
-    .gun { font-size:clamp(12rem, 30vw, 22rem); filter:drop-shadow(0 0 80px #ff2a8c); animation:pulse 5s infinite; cursor:pointer; }
-    @keyframes pulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.04)} }
+    body {
+      height: 100vh;
+      background: var(--dark);
+      color: #e8f0ff;
+      font-family: 'Courier New', Consolas, monospace;
+      overflow: hidden;
+      position: relative;
+    }
 
-    input, button { padding:18px 50px; font-size:1.8rem; margin:30px; border:3px solid #00faff; background:transparent; color:#00faff; box-shadow:0 0 40px rgba(0,250,255,0.5); cursor:pointer; }
-    button:hover { background:#00faff; color:#000; box-shadow:0 0 80px #00faff; transform:translateY(-4px); }
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      background: 
+        linear-gradient(rgba(195,0,255,0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,255,255,0.04) 1px, transparent 1px);
+      background-size: 60px 60px;
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    body::after {
+      content: "";
+      position: fixed;
+      inset: 0;
+      background: repeating-linear-gradient(
+        0deg,
+        transparent 0 2px,
+        rgba(0,0,0,0.6) 2px,
+        rgba(0,0,0,0.6) 4px
+      );
+      animation: scan 12s linear infinite;
+      pointer-events: none;
+      z-index: 2;
+    }
+
+    @keyframes scan {
+      0%   { transform: translateY(-100%); }
+      100% { transform: translateY(100%); }
+    }
+
+    .screen {
+      position: absolute;
+      inset: 0;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 10;
+      padding: 20px;
+    }
+
+    .screen.active { display: flex; }
+
+    .glitch-title {
+      font-size: clamp(4.5rem, 14vw, 11rem);
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: 0.6em;
+      color: white;
+      text-shadow: 
+        0 0 10px var(--neon-cyan),
+        0 0 30px var(--neon-cyan),
+        0 0 60px var(--neon-pink),
+        0 0 100px var(--neon-pink);
+      position: relative;
+      animation: glitch-main 6s infinite;
+    }
+
+    .glitch-title::before,
+    .glitch-title::after {
+      content: attr(data-text);
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: var(--dark);
+      clip: rect(0,9999px,0,0);
+    }
+
+    .glitch-title::before {
+      left: 4px;
+      text-shadow: -6px 0 var(--neon-pink);
+      animation: glitch-layer1 2.1s infinite alternate-reverse;
+    }
+
+    .glitch-title::after {
+      left: -4px;
+      text-shadow: 6px 0 var(--neon-cyan);
+      animation: glitch-layer2 3.2s infinite alternate-reverse;
+    }
+
+    @keyframes glitch-main {
+      0%, 92%, 100% { transform: translate(0); }
+      2%, 6%, 94%   { transform: translate(5px, -4px); }
+    }
+
+    @keyframes glitch-layer1 {
+      0%   { clip: rect(35px, 9999px, 65px, 0); }
+      20%  { clip: rect(75px, 9999px, 115px, 0); }
+      40%  { clip: rect(12px, 9999px, 52px, 0); }
+      60%  { clip: rect(85px, 9999px, 135px, 0); }
+      80%  { clip: rect(42px, 9999px, 82px, 0); }
+      100% { clip: rect(28px, 9999px, 68px, 0); }
+    }
+
+    @keyframes glitch-layer2 {
+      0%   { clip: rect(68px, 9999px, 108px, 0); }
+      25%  { clip: rect(18px, 9999px, 58px, 0); }
+      50%  { clip: rect(95px, 9999px, 145px, 0); }
+      75%  { clip: rect(48px, 9999px, 88px, 0); }
+      100% { clip: rect(8px, 9999px, 48px, 0); }
+    }
+
+    .revolver-intro {
+      font-size: clamp(12rem, 35vw, 28rem);
+      filter: drop-shadow(0 0 80px var(--neon-pink)) drop-shadow(0 0 160px var(--neon-cyan));
+      animation: revolver-breath 5.5s ease-in-out infinite;
+      margin: 50px 0 70px;
+      cursor: pointer;
+      user-select: none;
+      z-index: 3;
+    }
+
+    @keyframes revolver-breath {
+      0%,100% { transform: scale(1)   rotate(-12deg); }
+      50%     { transform: scale(1.07) rotate(12deg); }
+    }
+
+    input[type="text"] {
+      padding: 22px 40px;
+      font-size: 2rem;
+      width: 420px;
+      max-width: 90%;
+      background: rgba(20,0,45,0.8);
+      border: 4px solid var(--neon-cyan);
+      color: var(--neon-cyan);
+      text-shadow: 0 0 12px var(--neon-cyan);
+      box-shadow: 0 0 50px rgba(0,255,255,0.5);
+      transition: all 0.4s;
+    }
+
+    input:focus {
+      outline: none;
+      border-color: var(--neon-pink);
+      box-shadow: 0 0 90px rgba(255,26,117,0.8);
+    }
+
+    .btn-neon {
+      padding: 22px 70px;
+      font-size: 2.1rem;
+      margin-top: 50px;
+      background: transparent;
+      border: 5px solid var(--neon-pink);
+      color: var(--neon-pink);
+      text-shadow: 0 0 18px var(--neon-pink);
+      box-shadow: 0 0 60px rgba(255,26,117,0.7);
+      cursor: pointer;
+      transition: all 0.45s;
+      font-weight: bold;
+      letter-spacing: 4px;
+    }
+
+    .btn-neon:hover {
+      background: var(--neon-pink);
+      color: black;
+      box-shadow: 0 0 120px var(--neon-pink);
+      transform: translateY(-8px) scale(1.06);
+    }
+
+    .btn-neon:active {
+      transform: translateY(-2px) scale(0.96);
+    }
+
+    /* Restliche Styles für Lobby & Game (kannst du aus vorher erweitern) */
+    .lobby, .game { color: var(--neon-cyan); }
   </style>
 </head>
 <body>
 
 <div id="startScreen" class="screen active">
-  <h1 class="title">RUSSIAN ROULETTE</h1>
-  <div class="gun" id="gunClick">🔫</div>
-  <input id="playerName" placeholder="DEIN HANDLE" maxlength="16" autofocus>
-  <button id="startButton">START GAME</button>
+  <h1 class="glitch-title" data-text="RUSSIAN ROULETTE">RUSSIAN ROULETTE</h1>
+  <div class="revolver-intro" id="gun">🔫</div>
+  <input type="text" id="playerName" placeholder="ENTER YOUR HANDLE..." maxlength="16" autofocus>
+  <button class="btn-neon" id="startBtn">CONNECT TO THE GRID</button>
 </div>
 
-<div id="lobbyScreen" class="screen">
-  <h1>LOBBY</h1>
-  <div id="lobbyCodeDisplay">----</div>
-  <div>Handle: <span id="lobbyPlayerName"></span></div>
-  <div id="lobbyPlayers"></div>
-  <button id="createLobby">CREATE</button>
-  <button id="joinLobbyBtn">JOIN</button>
-  <input id="joinCodeInput" maxlength="4" placeholder="CODE">
-  <button id="startGame" disabled>START</button>
-</div>
+<!-- 
+  Hier kommen lobbyScreen und gameScreen hin – kopiere sie aus einer deiner vorherigen Versionen 
+  oder lass sie erstmal weg, wenn du nur den Start testen willst 
+-->
 
-<!-- gameScreen hier einfügen -->
+<script>
+// ────────────────────────────────────────────────
+// Start-Logik – jetzt sehr robust
+// ────────────────────────────────────────────────
 
-<div id="particles"></div>
+const nameInput = document.getElementById('playerName');
+const startBtn   = document.getElementById('startBtn');
+const gun        = document.getElementById('gun');
+
+function proceedToGame() {
+  let name = nameInput.value.trim();
+  if (!name) name = "Ghost-" + Math.floor(Math.random()*9999);
+  
+  localStorage.setItem('rr_nickname', name);
+  
+  // Hier kannst du zur Lobby oder direkt ins Spiel wechseln
+  // Für Test: nur Alert + Console
+  console.log("Starting game as:", name);
+  alert("Welcome to Night City, " + name + "!\n\nGame would start now…");
+
+  // Echter Wechsel-Beispiel:
+  // document.getElementById('startScreen').classList.remove('active');
+  // document.getElementById('lobbyScreen').classList.add('active');
+}
+
+nameInput.addEventListener('keypress', e => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    proceedToGame();
+  }
+});
+
+startBtn.addEventListener('click', proceedToGame);
+gun.addEventListener('click', proceedToGame);
+
+// Extra Feedback beim Hover auf Revolver
+gun.addEventListener('mouseenter', () => {
+  gun.style.animationDuration = '2.4s';
+  gun.style.filter = 'drop-shadow(0 0 120px #ff1a75) drop-shadow(0 0 220px #00ffff)';
+});
+gun.addEventListener('mouseleave', () => {
+  gun.style.animationDuration = '5.5s';
+  gun.style.filter = 'drop-shadow(0 0 80px #ff1a75) drop-shadow(0 0 160px #00ffff)';
+});
+</script>
 
 </body>
 </html>
