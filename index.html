@@ -29,7 +29,7 @@ button:hover{background:#ff0044;color:black}
 <div id="start" class="screen active">
 <h1 class="title">NIGHT CITY</h1>
 <input id="nameInput" placeholder="NAME">
-<button onclick="enterMenu()">ENTER</button>
+<button id="enterBtn">ENTER</button>
 </div>
 
 <!-- MENU -->
@@ -99,7 +99,20 @@ signInAnonymously(auth);
 onAuthStateChanged(auth,u=>user=u);
 
 function show(id){document.querySelectorAll(".screen").forEach(s=>s.classList.remove("active"));document.getElementById(id).classList.add("active")}
-function enterMenu(){name=document.getElementById("nameInput").value||"Player";show("menu");loadServers();}
+
+// --- Start ---
+const enterBtn = document.getElementById("enterBtn");
+const nameInput = document.getElementById("nameInput");
+
+function enterMenu(){
+  name = nameInput.value || "Player";
+  show("menu");
+  loadServers();
+}
+
+// ** Enter-Button + Enter-Taste **
+enterBtn.addEventListener("click", enterMenu);
+nameInput.addEventListener("keydown", e => {if(e.key==="Enter") enterMenu();});
 
 // --- Load Public Lobbies ---
 function loadServers(){
@@ -116,7 +129,7 @@ function loadServers(){
   });
 }
 
-// --- Lobby ---
+// --- Lobby / KI / Chat / Game ---
 function createLobby(pub){lobbyCode=Math.random().toString(36).slice(2,6).toUpperCase(); isHost=true; setupLobby(pub);}
 function joinPrivate(){let code=prompt("CODE?"); if(code) joinLobby(code.toUpperCase());}
 function joinLobby(code){lobbyCode=code; setupLobby(false);}
@@ -170,13 +183,11 @@ function updateGame(){
     div.innerText = p.name;
     circle.appendChild(div);
   });
-  // Pfeil auf aktuellen Spieler
   const arrow = document.getElementById("currentArrow");
   if(gameState.turn!=null && players[gameState.turn]){
     let angle = (360/n)*gameState.turn - 90;
     arrow.style.transform=`rotate(${angle}deg) translate(180px)`;
   }
-  // KI automatisch
   let current=players[gameState.turn]; if(current?.isKI && current.alive){setTimeout(()=>shoot(),1500);}
 }
 
@@ -203,6 +214,5 @@ function leaveLobby(){if(myKey) remove(ref(db,"lobbies/"+lobbyCode+"/players/"+m
 function createBangParticles(){const c=document.getElementById("particles");for(let i=0;i<50;i++){const p=document.createElement('div');p.style.cssText=`position:absolute;width:8px;height:8px;border-radius:50%;background:#ff0044;left:50%;top:50%;transform:translate(-50%,-50%);animation:fly ${0.6+Math.random()}s forwards`;c.appendChild(p);setTimeout(()=>p.remove(),1800);}}
 function checkWinner(){let alive=players.filter(p=>p.alive); if(alive.length===1){let txt=document.getElementById("winnerText"); txt.innerText=`WINNER: ${alive[0].name}`; txt.style.display="block"; setTimeout(()=>location.reload(),4000);}}
 </script>
-
 </body>
 </html>
