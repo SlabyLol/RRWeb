@@ -3,26 +3,26 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>RUSSIAN ROULETTE × NIGHT CITY</title>
+<title>Russian Roulette × Night City</title>
 <style>
 :root{--pink:#ff0044;--cyan:#00ffff;--purple:#c300ff;--dark:#0a0015;}
 body{margin:0;height:100vh;background:var(--dark);color:#e8f0ff;font-family:'Courier New',monospace;overflow:hidden;}
 .screen{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;z-index:10;padding:20px;}
 .screen.active{display:flex;}
-.title{font-size:clamp(5rem,15vw,12rem);font-weight:900;text-transform:uppercase;letter-spacing:0.5em;color:#fff;text-shadow:0 0 25px var(--cyan),0 0 70px var(--pink);}
-.screen input, .screen button{padding:12px 20px;margin:5px;font-size:1.5rem;color:var(--pink);background:transparent;border:2px solid var(--pink);cursor:pointer;}
-.screen button:hover{background:var(--pink);color:#000;}
+.title{font-size:clamp(5rem,15vw,10rem);font-weight:900;text-transform:uppercase;letter-spacing:0.5em;color:#fff;text-shadow:0 0 25px var(--cyan),0 0 70px var(--pink);}
+input,button{padding:12px 20px;margin:5px;font-size:1.5rem;color:var(--pink);background:transparent;border:2px solid var(--pink);cursor:pointer;}
+button:hover{background:var(--pink);color:#000;}
 .layout{display:flex;width:100%;max-width:1200px;margin-top:20px;}
 .left{flex:1;}
 .right{width:300px;border-left:2px solid var(--cyan);padding-left:10px;overflow-y:auto;max-height:400px;}
 .player{border:1px solid var(--pink);margin:5px;padding:5px;border-radius:5px;text-align:center;}
 .dead{opacity:0.3;text-decoration:line-through;}
 #chatBox{height:150px;overflow-y:auto;border:1px solid var(--cyan);margin-top:10px;padding:5px;background:#0a0015;}
-#gameArea{position:relative;width:600px;height:600px;margin:50px;}
+#gameArea{position:relative;width:600px;height:600px;margin:50px auto;}
 #circle{position:absolute;inset:0;border-radius:50%;border:2px solid var(--cyan);}
 .playerLabel{position:absolute;transform:translate(-50%,-50%);}
-#arrow{position:absolute;width:0;height:0;border-left:20px solid transparent;border-right:20px solid transparent;border-bottom:40px solid yellow;top:-50px;left:50%;transform-origin:center bottom;transition:transform 0.5s;}
-#gun{font-size:100px;cursor:pointer;user-select:none;}
+#arrow{position:absolute;width:0;height:0;border-left:15px solid transparent;border-right:15px solid transparent;border-bottom:30px solid yellow;top:-15px;left:50%;transform-origin:center bottom;transition:transform 0.5s;}
+#gun{font-size:100px;cursor:pointer;user-select:none;position:absolute;bottom:-80px;left:50%;transform:translateX(-50%);}
 #status{text-align:center;margin:20px;font-size:2rem;}
 </style>
 </head>
@@ -30,14 +30,14 @@ body{margin:0;height:100vh;background:var(--dark);color:#e8f0ff;font-family:'Cou
 
 <!-- START SCREEN -->
 <div id="startScreen" class="screen active">
-<h1 class="title" data-text="RUSSIAN ROULETTE">RUSSIAN ROULETTE</h1>
+<h1 class="title">RUSSIAN ROULETTE</h1>
 <input id="nameInput" placeholder="YOUR HANDLE / NICKNAME" maxlength="16">
 <button id="enterBtn">ENTER</button>
 </div>
 
 <!-- MENU SCREEN -->
 <div id="menuScreen" class="screen">
-<h1 class="title" data-text="NIGHT CITY">NIGHT CITY</h1>
+<h1 class="title">NIGHT CITY</h1>
 <button id="createPublicBtn">CREATE PUBLIC LOBBY</button>
 <input id="privateCodeInput" placeholder="Private Code">
 <button id="createPrivateBtn">CREATE PRIVATE LOBBY</button>
@@ -50,7 +50,7 @@ body{margin:0;height:100vh;background:var(--dark);color:#e8f0ff;font-family:'Cou
 
 <!-- LOBBY SCREEN -->
 <div id="lobbyScreen" class="screen">
-<h1 class="title" data-text="LOBBY">LOBBY <span id="lobbyCodeDisplay">----</span></h1>
+<h1 class="title">LOBBY <span id="lobbyCodeDisplay">----</span></h1>
 <div class="layout">
 <div class="left">
 <button id="leaveBtn">LEAVE</button>
@@ -69,7 +69,7 @@ body{margin:0;height:100vh;background:var(--dark);color:#e8f0ff;font-family:'Cou
 
 <!-- GAME SCREEN -->
 <div id="gameScreen" class="screen">
-<h1 class="title" data-text="GAME ON">GAME ON</h1>
+<h1 class="title">GAME ON</h1>
 <div id="status">Waiting to start...</div>
 <div id="gameArea">
 <div id="circle"></div>
@@ -91,7 +91,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebas
 import { getDatabase, ref, set, push, onValue, get, remove, onDisconnect, update } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-database.js";
 import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-auth.js";
 
-// Firebase
+// Firebase Config
 const firebaseConfig = {
 apiKey: "AIzaSyBa5w0hQ1v7Nowk-BvDgkGeNRNf1WJtDgw",
 authDomain: "rrweb-dc73f.firebaseapp.com",
@@ -101,6 +101,7 @@ storageBucket: "rrweb-dc73f.appspot.com",
 messagingSenderId: "247426843219",
 appId: "1:247426843219:web:c466e97fd59ee160c9bca6"
 };
+
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 const auth = getAuth(app);
@@ -154,7 +155,7 @@ function showScreen(screen){ [startScreen,menuScreen,lobbyScreen,gameScreen].for
 enterBtn.onclick=()=>{ playerName=nameInput.value||"Choom"; showScreen(menuScreen); loadPublicServers(); };
 nameInput.addEventListener('keydown',e=>{ if(e.key==="Enter") enterBtn.click(); });
 
-// --- Lobby Functions ---
+// --- Lobby ---
 function generateLobbyID(){ return Math.random().toString(36).substring(2,6).toUpperCase(); }
 async function createLobby(isPublic, code=null){
 if(!userReady){ alert("Auth not ready"); return; }
@@ -179,7 +180,7 @@ showScreen(lobbyScreen);
 }
 joinBtn.onclick=()=>joinLobby(joinLobbyInput.value.toUpperCase());
 
-// --- Lobby Listener ---
+// --- Lobby Listener & Game ---
 function listenLobby(){
 onValue(ref(db,"lobbies/"+lobbyId),snap=>{
 const data=snap.val();
@@ -187,28 +188,22 @@ if(!data){ showScreen(menuScreen); return; }
 lobbyCodeDisplay.textContent=lobbyId;
 renderPlayers(data.players||{});
 renderChat(data.chat||{});
-let humanCount=0;
-for(let k in data.players) if(!data.players[k].isKI) humanCount++;
+let humanCount=0; for(let k in data.players) if(!data.players[k].isKI) humanCount++;
 if(isHost && humanCount===0) remove(ref(db,"lobbies/"+lobbyId));
 
 if(data.gameState && data.gameState.started){
 gameState=data.gameState;
 showScreen(gameScreen);
 renderGameCircle();
+renderGameUI();
 }
 });
 }
 
-function renderPlayers(playersObj){
-players=[]; let html="";
-for(let k in playersObj){ const p=playersObj[k]; players.push({key:k,...p}); html+=`<div class="player">${p.name}${p.isKI?" 🤖":""}</div>\n`; }
-playerList.innerHTML=html;
-}
-
-function renderChat(chatObj){
-let html=""; for(let k in chatObj) html+=`<div><b>${chatObj[k].name}:</b> ${chatObj[k].text}</div>`;
-chatBox.innerHTML=html;
-}
+// Render Lobby Players
+function renderPlayers(playersObj){ players=[]; let html=""; for(let k in playersObj){ const p=playersObj[k]; players.push({key:k,...p}); html+=`<div class="player">${p.name}${p.isKI?" 🤖":""}</div>`;} playerList.innerHTML=html; }
+// Chat
+function renderChat(chatObj){ let html=""; for(let k in chatObj) html+=`<div><b>${chatObj[k].name}:</b> ${chatObj[k].text}</div>`; chatBox.innerHTML=html; }
 
 addKiBtn.onclick=()=>push(ref(db,"lobbies/"+lobbyId+"/players"),{name:"AI-"+Math.floor(Math.random()*100),uid:"AI"+Date.now(),isKI:true,alive:true});
 leaveBtn.onclick=()=>{ if(myKey) remove(ref(db,"lobbies/"+lobbyId+"/players/"+myKey)); showScreen(menuScreen); loadPublicServers(); };
@@ -223,7 +218,7 @@ currentPos:0, currentTurn:0, chambers:6
 });
 };
 
-// --- Circle Rendering ---
+// --- Circle Layout ---
 function renderGameCircle(){
 const num=players.length; const radius=200; const cx=300; const cy=300;
 gameArea.querySelectorAll('.playerLabel').forEach(el=>el.remove());
@@ -240,7 +235,6 @@ gameArea.appendChild(label);
 rotateArrow();
 }
 
-// --- Arrow ---
 function rotateArrow(){
 if(!gameState) return;
 const num=players.length;
@@ -248,7 +242,16 @@ const angle=(gameState.currentTurn/num)*360;
 arrow.style.transform=`rotate(${angle}deg)`;
 }
 
-// --- Load public servers ---
+function renderGameUI(){
+const alivePlayers=players.filter(p=>p.alive);
+let html="";
+alivePlayers.forEach(p=>{ html+=`<div class="player${p.alive?'':' dead'}">${p.name}${p.isKI?' 🤖':''}</div>`; });
+gamePlayers.innerHTML=html;
+statusDisplay.textContent=`Turn: ${players[gameState.currentTurn]?.name}`;
+rotateArrow();
+}
+
+// --- Public Servers ---
 function loadPublicServers(){
 onValue(ref(db,"lobbies"),snap=>{
 const data=snap.val(); let html="";
