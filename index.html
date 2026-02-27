@@ -2,15 +2,30 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Night City Multiplayer Roulette</title>
+<title>Night City Roulette</title>
 
 <style>
 body{
 margin:0;
 font-family:Courier New;
-background:#050010;
-color:white;
+background:linear-gradient(180deg,#030010,#0a001f);
+color:#fff;
+overflow:hidden;
+}
+
+h1{
+font-size:42px;
 text-align:center;
+color:#fff;
+text-shadow:
+2px 2px #ff00ff,
+-2px -2px #00ffff;
+animation:glitch 2s infinite alternate;
+}
+
+@keyframes glitch{
+0%{text-shadow:2px 2px #ff00ff,-2px -2px #00ffff;}
+100%{text-shadow:-2px 2px #00ffff,2px -2px #ff00ff;}
 }
 
 button,input{
@@ -20,10 +35,32 @@ background:black;
 color:#00ffff;
 border:2px solid #00ffff;
 cursor:pointer;
+font-size:16px;
 }
 
-button:hover{background:#00ffff;color:black;}
+button:hover{
+background:#00ffff;
+color:black;
+}
+
 .hidden{display:none;}
+
+#lobbyPlayers{
+position:absolute;
+right:20px;
+top:150px;
+width:200px;
+border-left:2px solid #00ffff;
+padding-left:10px;
+}
+
+.chatBox{
+height:120px;
+overflow-y:auto;
+border:1px solid #00ffff;
+margin:5px;
+padding:5px;
+}
 
 #gameArea{
 position:relative;
@@ -31,56 +68,83 @@ width:600px;
 height:600px;
 margin:20px auto;
 }
+
 #circle{
 position:absolute;
 inset:0;
 border-radius:50%;
 border:2px solid #00ffff;
 }
+
 .playerLabel{
 position:absolute;
 transform:translate(-50%,-50%);
+transition:0.5s;
 }
+
 .dead{
 opacity:0.3;
 text-decoration:line-through;
+animation:fade 0.5s;
 }
+
+@keyframes fade{
+0%{transform:scale(1.2);}
+100%{transform:scale(1);}
+}
+
 #arrow{
 position:absolute;
-width:0;height:0;
+width:0;
+height:0;
 border-left:15px solid transparent;
 border-right:15px solid transparent;
 border-bottom:30px solid yellow;
 top:-15px;
 left:50%;
 transform-origin:center bottom;
-transition:0.5s;
+transition:0.4s;
 }
 </style>
 </head>
 
 <body>
 
+<!-- START -->
 <div id="startScreen">
-<h1>Night City Roulette</h1>
+<h1>NIGHT CITY ROULETTE</h1>
+<center>
 <input id="nameInput" placeholder="Your name"><br>
 <button id="enterBtn">ENTER</button>
+</center>
 </div>
 
-<div id="menuScreen" class="hidden">
+<!-- MENU -->
+<div id="menuScreen" class="hidden" style="text-align:center;">
 <h2>Lobby</h2>
 <input id="lobbyCodeInput" placeholder="Lobby Code">
-<button id="createBtn">Create</button>
-<button id="joinBtn">Join</button>
+<input id="privateCodeInput" placeholder="Private Code (optional)">
+<br>
+<button id="createBtn">Create Lobby</button>
+<button id="joinBtn">Join Lobby</button>
 </div>
 
+<!-- LOBBY -->
 <div id="lobbyScreen" class="hidden">
-<h3 id="lobbyInfo"></h3>
-<div id="playersList"></div>
+<h2 id="lobbyTitle"></h2>
+<button id="addAiBtn">Add AI</button>
 <button id="startGameBtn">Start Game</button>
 <button id="leaveBtn">Leave</button>
+
+<div id="lobbyPlayers"></div>
+
+<h3>Lobby Chat</h3>
+<div id="lobbyChat" class="chatBox"></div>
+<input id="lobbyChatInput">
+<button id="sendLobbyChatBtn">Send</button>
 </div>
 
+<!-- GAME -->
 <div id="gameScreen" class="hidden">
 <h2 id="status"></h2>
 
@@ -90,15 +154,19 @@ transition:0.5s;
 </div>
 
 <button id="spinBtn">Spin</button>
-<button id="shootBtn">Shoot</button>
-<button id="doubleBtn">Double Shoot</button>
+<button id="shootBtn">Shoot x1</button>
+<button id="doubleBtn">Shoot x2</button>
 <button id="giveUpBtn">Give Up</button>
+
+<h3>Game Chat</h3>
+<div id="gameChat" class="chatBox"></div>
+<input id="gameChatInput">
+<button id="sendGameChatBtn">Send</button>
 </div>
 
 <script type="module">
-
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
-import { getDatabase, ref, set, update, remove, onValue } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-database.js";
+import { getDatabase, ref, set, update, remove, onValue, push } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-database.js";
 
 const firebaseConfig={
 apiKey:"AIzaSyBa5w0hQ1v7Nowk-BvDgkGeNRNf1WJtDgw",
@@ -110,103 +178,109 @@ projectId:"rrweb-dc73f"
 const app=initializeApp(firebaseConfig);
 const db=getDatabase(app);
 
-let playerName="";
-let lobbyId=null;
+let name="";
+let lobbyId="";
 let players={};
-let gameData=null;
+let game={};
 
-const startScreen=document.getElementById("startScreen");
-const menuScreen=document.getElementById("menuScreen");
-const lobbyScreen=document.getElementById("lobbyScreen");
-const gameScreen=document.getElementById("gameScreen");
-
-const enterBtn=document.getElementById("enterBtn");
-const createBtn=document.getElementById("createBtn");
-const joinBtn=document.getElementById("joinBtn");
-const startGameBtn=document.getElementById("startGameBtn");
-const leaveBtn=document.getElementById("leaveBtn");
-
-const spinBtn=document.getElementById("spinBtn");
-const shootBtn=document.getElementById("shootBtn");
-const doubleBtn=document.getElementById("doubleBtn");
-const giveUpBtn=document.getElementById("giveUpBtn");
-
-enterBtn.onclick=()=>{
-playerName=document.getElementById("nameInput").value||"Player"+Math.floor(Math.random()*100);
-startScreen.classList.add("hidden");
-menuScreen.classList.remove("hidden");
+const screens={
+start:document.getElementById("startScreen"),
+menu:document.getElementById("menuScreen"),
+lobby:document.getElementById("lobbyScreen"),
+game:document.getElementById("gameScreen")
 };
 
-function randomCode(){
-return Math.random().toString(36).substring(2,7).toUpperCase();
+function show(scr){
+Object.values(screens).forEach(s=>s.classList.add("hidden"));
+scr.classList.remove("hidden");
 }
 
-createBtn.onclick=()=>{
-lobbyId=randomCode();
+document.getElementById("enterBtn").onclick=()=>{
+name=document.getElementById("nameInput").value||"Player"+Math.floor(Math.random()*100);
+show(screens.menu);
+};
+
+function codeGen(){return Math.random().toString(36).substring(2,7).toUpperCase();}
+
+document.getElementById("createBtn").onclick=()=>{
+lobbyId=codeGen();
 set(ref(db,"lobbies/"+lobbyId),{
-players:{[playerName]:{alive:true}},
+host:name,
+privateCode:document.getElementById("privateCodeInput").value||null,
+players:{[name]:{alive:true,isAI:false}},
 game:{state:"lobby"}
 });
 listenLobby();
-menuScreen.classList.add("hidden");
-lobbyScreen.classList.remove("hidden");
-document.getElementById("lobbyInfo").innerText="Code: "+lobbyId;
+show(screens.lobby);
 };
 
-joinBtn.onclick=()=>{
+document.getElementById("joinBtn").onclick=()=>{
 lobbyId=document.getElementById("lobbyCodeInput").value.trim().toUpperCase();
-if(!lobbyId)return alert("Enter code");
-update(ref(db,"lobbies/"+lobbyId+"/players"),{
-[playerName]:{alive:true}
+onValue(ref(db,"lobbies/"+lobbyId),(snap)=>{
+if(!snap.exists()){alert("Lobby not found");return;}
+let data=snap.val();
+if(data.privateCode){
+if(data.privateCode!==document.getElementById("privateCodeInput").value){
+alert("Wrong Private Code");return;
+}
+}
+update(ref(db,"lobbies/"+lobbyId+"/players"),{[name]:{alive:true,isAI:false}});
 });
 listenLobby();
-menuScreen.classList.add("hidden");
-lobbyScreen.classList.remove("hidden");
-document.getElementById("lobbyInfo").innerText="Code: "+lobbyId;
+show(screens.lobby);
 };
 
 function listenLobby(){
 onValue(ref(db,"lobbies/"+lobbyId),(snap)=>{
-if(!snap.exists()){alert("Lobby deleted");return;}
+if(!snap.exists()){show(screens.menu);return;}
 let data=snap.val();
 players=data.players;
+game=data.game;
 renderPlayers();
-if(data.game.state==="playing"){
-startGameListener();
-}
+if(game.state==="playing"){startGame();}
 });
 }
 
 function renderPlayers(){
-const div=document.getElementById("playersList");
-div.innerHTML="";
+let div=document.getElementById("lobbyPlayers");
+div.innerHTML="<h3>Players</h3>";
 for(let p in players){
-div.innerHTML+="<div>"+p+"</div>";
+div.innerHTML+="<div>"+p+(players[p].isAI?" (AI)":"")+"</div>";
 }
 }
 
-startGameBtn.onclick=()=>{
-let names=Object.keys(players);
+document.getElementById("addAiBtn").onclick=()=>{
+update(ref(db,"lobbies/"+lobbyId+"/players"),{
+["AI-"+Math.floor(Math.random()*999)]:{alive:true,isAI:true}
+});
+};
+
+document.getElementById("leaveBtn").onclick=async()=>{
+await remove(ref(db,"lobbies/"+lobbyId+"/players/"+name));
+let realPlayers=Object.values(players).filter(p=>!p.isAI);
+if(realPlayers.length<=1){
+remove(ref(db,"lobbies/"+lobbyId));
+}
+show(screens.menu);
+};
+
+document.getElementById("startGameBtn").onclick=()=>{
+let list=Object.keys(players);
 update(ref(db,"lobbies/"+lobbyId+"/game"),{
 state:"playing",
 bullet:Math.floor(Math.random()*6),
 chamber:0,
-turn:names[0]
+turn:list[0]
 });
 };
 
-function startGameListener(){
-lobbyScreen.classList.add("hidden");
-gameScreen.classList.remove("hidden");
-
-onValue(ref(db,"lobbies/"+lobbyId+"/game"),(snap)=>{
-gameData=snap.val();
+function startGame(){
+show(screens.game);
 renderGame();
-});
 }
 
 function renderGame(){
-document.getElementById("status").innerText="Turn: "+gameData.turn;
+document.getElementById("status").innerText="Turn: "+game.turn;
 renderCircle();
 updateButtons();
 }
@@ -214,91 +288,80 @@ updateButtons();
 function renderCircle(){
 const area=document.getElementById("gameArea");
 area.querySelectorAll(".playerLabel").forEach(e=>e.remove());
-
 const names=Object.keys(players);
-const radius=230;
-const cx=300;
-const cy=300;
+const r=230; const cx=300; const cy=300;
 
 names.forEach((p,i)=>{
 const angle=(i/names.length)*2*Math.PI;
-const x=cx+radius*Math.cos(angle);
-const y=cy+radius*Math.sin(angle);
-
-let div=document.createElement("div");
-div.className="playerLabel";
-div.style.left=x+"px";
-div.style.top=y+"px";
-div.textContent=p;
-
-if(!players[p].alive)div.classList.add("dead");
-
-area.appendChild(div);
+let x=cx+r*Math.cos(angle);
+let y=cy+r*Math.sin(angle);
+let d=document.createElement("div");
+d.className="playerLabel";
+d.style.left=x+"px";
+d.style.top=y+"px";
+d.textContent=p;
+if(!players[p].alive)d.classList.add("dead");
+area.appendChild(d);
 });
-
-let index=names.indexOf(gameData.turn);
-let deg=(index/names.length)*360;
-document.getElementById("arrow").style.transform="rotate("+deg+"deg)";
+let idx=names.indexOf(game.turn);
+document.getElementById("arrow").style.transform="rotate("+(idx/names.length*360)+"deg)";
 }
 
 function updateButtons(){
-let isTurn=(gameData.turn===playerName);
-spinBtn.disabled=!isTurn;
-shootBtn.disabled=!isTurn;
-doubleBtn.disabled=!isTurn;
-giveUpBtn.disabled=!isTurn;
+let turn=(game.turn===name);
+["spinBtn","shootBtn","doubleBtn","giveUpBtn"].forEach(id=>{
+document.getElementById(id).disabled=!turn;
+});
+}
+
+document.getElementById("spinBtn").onclick=()=>{
+update(ref(db,"lobbies/"+lobbyId+"/game/bullet"),Math.floor(Math.random()*6));
+};
+
+function shoot(times){
+if(game.turn!==name)return;
+let ch=(game.chamber+times)%6;
+if(ch===game.bullet){
+update(ref(db,"lobbies/"+lobbyId+"/players/"+name+"/alive"),false);
+}
+update(ref(db,"lobbies/"+lobbyId+"/game/chamber"),ch);
+nextTurn();
 }
 
 function nextTurn(){
-let names=Object.keys(players).filter(p=>players[p].alive);
-let i=names.indexOf(gameData.turn);
-let next=names[(i+1)%names.length];
+let alive=Object.keys(players).filter(p=>players[p].alive);
+let idx=alive.indexOf(game.turn);
+let next=alive[(idx+1)%alive.length];
 update(ref(db,"lobbies/"+lobbyId+"/game/turn"),next);
 }
 
-shootBtn.onclick=()=>shoot(1);
-doubleBtn.onclick=()=>shoot(2);
-
-function shoot(times){
-if(gameData.turn!==playerName)return;
-
-let chamber=(gameData.chamber+times)%6;
-let alive=true;
-
-if(chamber===gameData.bullet){
-alive=false;
-update(ref(db,"lobbies/"+lobbyId+"/players/"+playerName+"/alive"),false);
-}
-
-update(ref(db,"lobbies/"+lobbyId+"/game/chamber"),chamber);
-
-if(alive){
-nextTurn();
-}else{
-setTimeout(checkWinner,300);
-}
-}
-
-giveUpBtn.onclick=()=>{
-update(ref(db,"lobbies/"+lobbyId+"/players/"+playerName+"/alive"),false);
+document.getElementById("shootBtn").onclick=()=>shoot(1);
+document.getElementById("doubleBtn").onclick=()=>shoot(2);
+document.getElementById("giveUpBtn").onclick=()=>{
+update(ref(db,"lobbies/"+lobbyId+"/players/"+name+"/alive"),false);
 nextTurn();
 };
 
-function checkWinner(){
-let alive=Object.keys(players).filter(p=>players[p].alive);
-if(alive.length===1){
-alert("Winner: "+alive[0]);
-}
-}
-
-leaveBtn.onclick=()=>{
-remove(ref(db,"lobbies/"+lobbyId+"/players/"+playerName));
-menuScreen.classList.remove("hidden");
-lobbyScreen.classList.add("hidden");
-gameScreen.classList.add("hidden");
+document.getElementById("sendLobbyChatBtn").onclick=()=>{
+push(ref(db,"lobbies/"+lobbyId+"/lobbyChat"),{sender:name,msg:document.getElementById("lobbyChatInput").value});
+document.getElementById("lobbyChatInput").value="";
 };
+
+document.getElementById("sendGameChatBtn").onclick=()=>{
+push(ref(db,"lobbies/"+lobbyId+"/gameChat"),{sender:name,msg:document.getElementById("gameChatInput").value});
+document.getElementById("gameChatInput").value="";
+};
+
+onValue(ref(db,"lobbies/"+lobbyId+"/lobbyChat"),snap=>{
+let box=document.getElementById("lobbyChat"); box.innerHTML="";
+snap.forEach(c=>{box.innerHTML+=c.val().sender+": "+c.val().msg+"<br>";});
+});
+
+onValue(ref(db,"lobbies/"+lobbyId+"/gameChat"),snap=>{
+let box=document.getElementById("gameChat"); box.innerHTML="";
+snap.forEach(c=>{box.innerHTML+=c.val().sender+": "+c.val().msg+"<br>";});
+});
 
 </script>
-
 </body>
 </html>
