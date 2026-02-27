@@ -14,7 +14,7 @@ button,input{padding:12px 20px;margin:5px;font-size:1.5rem;color:var(--pink);bac
 button:hover{background:var(--pink);color:#000;}
 .layout{display:flex;width:100%;max-width:1200px;margin-top:20px;}
 .left{flex:1;}
-.right{width:250px;border-left:2px solid var(--cyan);padding-left:10px;}
+.right{width:300px;border-left:2px solid var(--cyan);padding-left:10px;}
 .player{border:1px solid var(--pink);margin:5px;padding:5px;}
 .dead{opacity:0.3;text-decoration:line-through;}
 #chatBox{height:150px;overflow-y:auto;border:1px solid var(--cyan);margin-top:10px;padding:5px;background:#0a0015;}
@@ -22,12 +22,14 @@ button:hover{background:var(--pink);color:#000;}
 </head>
 <body>
 
+<!-- START SCREEN -->
 <div id="startScreen" class="screen active">
 <h1 class="title">NIGHT CITY</h1>
 <input id="nameInput" placeholder="DEIN NAME">
 <button id="enterBtn">ENTER</button>
 </div>
 
+<!-- MENU -->
 <div id="menuScreen" class="screen">
 <h1 class="title">LOBBIES</h1>
 <button id="createPublicBtn">CREATE PUBLIC</button>
@@ -40,6 +42,7 @@ button:hover{background:var(--pink);color:#000;}
 <div id="serverList"></div>
 </div>
 
+<!-- LOBBY -->
 <div id="lobbyScreen" class="screen">
 <h1 class="title" id="lobbyHeader">LOBBY</h1>
 <div class="layout">
@@ -168,7 +171,11 @@ function listenLobby(){
 // --- RENDER PLAYERS ---
 function renderPlayers(players){
   let html="", humanCount=0;
-  for(let k in players){ const p=players[k]; if(!p.isKI) humanCount++; html+=`<div class="player">${p.name}${p.isKI?" 🤖":""}</div>`; }
+  for(let k in players){
+    const p=players[k];
+    if(!p.isKI) humanCount++;
+    html+=`<div class="player">${p.name}${p.isKI?" 🤖":""}</div>\n`; // Jede Zeile
+  }
   playerList.innerHTML=html;
   if(isHost && humanCount===0) remove(ref(db,"lobbies/"+lobbyId));
 }
@@ -191,7 +198,6 @@ function loadPublicServers(){
     serverList.innerHTML=html;
   });
 }
-
 </script>
 </body>
 </html>
