@@ -5,7 +5,7 @@
 <title>NIGHT CITY RR</title>
 
 <style>
-body{margin:0;background:#0a0015;color:white;font-family:Courier New,monospace;overflow:hidden;}
+body{margin:0;background:#0a0015;color:white;font-family:Courier New,monospace;overflow:hidden}
 .screen{display:none;position:absolute;inset:0;padding:20px}
 .active{display:block}
 h1{text-align:center;font-size:60px;letter-spacing:8px;animation:glitch 3s infinite}
@@ -19,7 +19,7 @@ h1{text-align:center;font-size:60px;letter-spacing:8px;animation:glitch 3s infin
 .right{width:250px;border-left:2px solid #00ffff;padding-left:10px}
 button{padding:8px 16px;background:transparent;border:2px solid #ff00ff;color:#ff00ff;margin:5px;cursor:pointer}
 button:hover{background:#ff00ff;color:black}
-input,select{padding:6px;background:black;color:#00ffff;border:1px solid #00ffff;margin:5px}
+input{padding:6px;background:black;color:#00ffff;border:1px solid #00ffff;margin:5px}
 .player{border:1px solid #ff00ff;padding:5px;margin:5px}
 .dead{opacity:0.3;text-decoration:line-through}
 #chatBox{height:150px;overflow-y:auto;border:1px solid #00ffff;margin-top:10px}
@@ -36,30 +36,28 @@ input,select{padding:6px;background:black;color:#00ffff;border:1px solid #00ffff
 <div id="menu" class="screen">
 <h1>LOBBIES</h1>
 <button id="createPublic">CREATE PUBLIC</button>
+<br>
+<input id="privateCodeInput" placeholder="Private Code">
 <button id="createPrivate">CREATE PRIVATE</button>
-<input id="joinInput" placeholder="CODE">
+<br>
+<input id="joinLobbyInput" placeholder="Lobby ID">
+<input id="joinCodeInput" placeholder="Code (falls privat)">
 <button id="joinBtn">JOIN</button>
+<h3>Public Servers</h3>
 <div id="serverList"></div>
 </div>
 
 <div id="lobby" class="screen">
-<h1 id="lobbyCode"></h1>
+<h1 id="lobbyHeader"></h1>
 
 <div class="layout">
 <div class="left">
-<select id="modifierSelect">
-<option value="6">6 Chambers</option>
-<option value="8">8 Chambers</option>
-<option value="double">Double Bullet</option>
-</select>
-
-<button id="startGame">START</button>
-<button id="addKi">ADD KI</button>
-<button id="leaveLobby">LEAVE</button>
+<button id="leaveBtn">LEAVE</button>
+<button id="addKiBtn">ADD KI</button>
 
 <div id="chatBox"></div>
 <input id="chatInput">
-<button id="sendChat">SEND</button>
+<button id="sendBtn">SEND</button>
 </div>
 
 <div class="right">
@@ -71,7 +69,7 @@ input,select{padding:6px;background:black;color:#00ffff;border:1px solid #00ffff
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
-import { getDatabase, ref, set, push, onValue, remove, update, get } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-database.js";
+import { getDatabase, ref, set, push, onValue, get, remove } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-database.js";
 import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-auth.js";
 
 const config={
@@ -85,7 +83,7 @@ const app=initializeApp(config);
 const db=getDatabase(app);
 const auth=getAuth(app);
 
-let user,name,lobbyId,myKey,isHost=false,players=[];
+let user,name,lobbyId,myKey,isHost=false;
 
 signInAnonymously(auth);
 onAuthStateChanged(auth,u=>user=u);
@@ -98,10 +96,133 @@ document.getElementById(id).classList.add("active");
 enterBtn.onclick=()=>{
 name=nameInput.value||"Player";
 show("menu");
-loadServers();
+loadPublicServers();
 };
 
-function loadServers(){
+function generateID(){
+return Math.random().toString(36).substring(2,6).toUpperCase();
+}
+
+async function createLobby(isPublic, code=null){
+lobbyId=generateID();
+isHost=true;
+
+await set(ref(db,"lobbies/"+lobbyId),{
+public:isPublic,
+privateCode:code||null,
+hostUid:user.uid
+});
+
+addPlayer();
+listenLobby();
+show("lobby");
+}
+
+createPublic.onclick=()=>createLobby(true);
+
+createPrivate.onclick=()=>{
+const code=privateCodeInput.value.trim();
+if(!code){alert("Code fehlt");return;}
+createLobby(false,code);
+};
+
+joinBtn.onclick=async()=>{
+const id=joinLobbyInput.value.toUpperCase();
+if(!id)return;
+
+const snap=await get(ref(db,"lobbies/"+id));
+if(!snap.exists()){alert("Lobby nicht gefunden");return;}
+
+const data=snap.val();
+
+if(!data.public){
+if(joinCodeInput.value!==data.privateCode){
+alert("Falscher Code");
+return;
+}
+}
+
+lobbyId=id;
+isHost=(data.hostUid===user.uid);
+
+addPlayer();
+listenLobby();
+show("lobby");
+};
+
+function addPlayer(){
+const pRef=push(ref(db,"lobbies/"+lobbyId+"/players"));
+myKey=pRef.key;
+set(pRef,{
+name:name,
+uid:user.uid,
+isKI:false
+});
+pRef.onDisconnect().remove();
+}
+
+function listenLobby(){
+onValue(ref(db,"lobbies/"+lobbyId),snap=>{
+const data=snap.val();
+if(!data){show("menu");return;}
+
+lobbyHeader.innerText="Lobby: "+lobbyId+(data.public?" (Public)":" (Private)");
+
+renderPlayers(data.players||{});
+renderChat(data.chat||{});
+});
+}
+
+function renderPlayers(players){
+let html="";
+let humanCount=0;
+
+for(let key in players){
+const p=players[key];
+if(!p.isKI) humanCount++;
+html+=`<div class="player">${p.name}${p.isKI?" 🤖":""}</div>`;
+}
+
+playerList.innerHTML=html;
+
+if(isHost && humanCount===0){
+remove(ref(db,"lobbies/"+lobbyId));
+}
+}
+
+addKiBtn.onclick=()=>{
+push(ref(db,"lobbies/"+lobbyId+"/players"),{
+name:"KI-"+Math.floor(Math.random()*100),
+uid:"KI"+Date.now(),
+isKI:true
+});
+};
+
+leaveBtn.onclick=()=>{
+if(myKey){
+remove(ref(db,"lobbies/"+lobbyId+"/players/"+myKey));
+}
+};
+
+sendBtn.onclick=()=>{
+const text=chatInput.value;
+if(!text)return;
+push(ref(db,"lobbies/"+lobbyId+"/chat"),{
+name:name,
+text:text
+});
+chatInput.value="";
+};
+
+function renderChat(chat){
+let html="";
+for(let key in chat){
+html+=`<div><b>${chat[key].name}:</b> ${chat[key].text}</div>`;
+}
+chatBox.innerHTML=html;
+}
+
+function loadPublicServers(){
 onValue(ref(db,"lobbies"),snap=>{
 const data=snap.val();
 let html="";
@@ -114,118 +235,6 @@ html+=`<div>${id}</div>`;
 }
 serverList.innerHTML=html;
 });
-}
-
-createPublic.onclick=()=>createLobby(true);
-createPrivate.onclick=()=>createLobby(false);
-
-function createLobby(pub){
-lobbyId=Math.random().toString(36).substring(2,6).toUpperCase();
-isHost=true;
-set(ref(db,"lobbies/"+lobbyId),{
-public:pub,
-hostUid:user.uid,
-modifier:"6",
-state:"lobby"
-});
-addPlayer();
-listenLobby();
-}
-
-joinBtn.onclick=async()=>{
-const id=joinInput.value.toUpperCase();
-if(!id)return;
-
-const snap=await get(ref(db,"lobbies/"+id));
-if(!snap.exists()){
-alert("Lobby existiert nicht");
-return;
-}
-
-lobbyId=id;
-isHost=false;
-addPlayer();
-listenLobby();
-show("lobby");
-};
-
-function addPlayer(){
-const pRef=push(ref(db,"lobbies/"+lobbyId+"/players"));
-myKey=pRef.key;
-set(pRef,{
-name:name,
-uid:user.uid,
-alive:true,
-isKI:false
-});
-pRef.onDisconnect().remove();
-}
-
-function listenLobby(){
-onValue(ref(db,"lobbies/"+lobbyId),snap=>{
-const data=snap.val();
-if(!data){show("menu");return;}
-
-isHost=(data.hostUid===user.uid);
-players=Object.entries(data.players||{}).map(([k,v])=>({key:k,...v}));
-
-renderPlayers();
-renderChat(data.chat);
-modifierSelect.value=data.modifier;
-});
-}
-
-function renderPlayers(){
-let html="";
-players.forEach(p=>{
-html+=`<div class="player ${p.alive?'':'dead'}">${p.name}${p.isKI?' 🤖':''}</div>`;
-});
-playerList.innerHTML=html;
-
-const humans=players.filter(p=>!p.isKI);
-if(isHost && humans.length===0){
-remove(ref(db,"lobbies/"+lobbyId));
-}
-}
-
-modifierSelect.onchange=()=>{
-if(isHost){
-update(ref(db,"lobbies/"+lobbyId),{modifier:modifierSelect.value});
-}
-};
-
-addKi.onclick=()=>{
-push(ref(db,"lobbies/"+lobbyId+"/players"),{
-name:"KI-"+Math.floor(Math.random()*100),
-uid:"KI"+Date.now(),
-alive:true,
-isKI:true
-});
-};
-
-leaveLobby.onclick=()=>{
-if(myKey){
-remove(ref(db,"lobbies/"+lobbyId+"/players/"+myKey));
-}
-};
-
-sendChat.onclick=()=>{
-let text=chatInput.value;
-if(!text)return;
-push(ref(db,"lobbies/"+lobbyId+"/chat"),{
-name:name,
-text:text
-});
-chatInput.value="";
-};
-
-function renderChat(chat){
-if(!chat)return;
-let html="";
-Object.values(chat).forEach(m=>{
-html+=`<div><b>${m.name}:</b> ${m.text}</div>`;
-});
-chatBox.innerHTML=html;
 }
 </script>
 </body>
