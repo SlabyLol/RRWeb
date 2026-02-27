@@ -2,58 +2,31 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>GLITCH NIGHT CITY RR</title>
+<title>NIGHT CITY RR</title>
 
 <style>
 body{
 margin:0;
-background:#070010;
-color:#fff;
+background:#0a0015;
+color:white;
 font-family:Courier New,monospace;
 overflow:hidden;
 }
 
-.screen{
-display:none;
-position:absolute;
-inset:0;
-padding:20px;
-}
-
+.screen{display:none;position:absolute;inset:0;padding:20px}
 .active{display:block}
 
 h1{
 text-align:center;
 font-size:60px;
-letter-spacing:6px;
+letter-spacing:8px;
 animation:glitch 3s infinite;
 }
 
 @keyframes glitch{
-0%{text-shadow:3px 0 #ff00ff,-3px 0 #00ffff;}
-50%{text-shadow:-3px 0 #ff00ff,3px 0 #00ffff;}
-100%{text-shadow:3px 0 #ff00ff,-3px 0 #00ffff;}
-}
-
-button{
-padding:8px 16px;
-background:transparent;
-border:2px solid #ff00ff;
-color:#ff00ff;
-cursor:pointer;
-margin:5px;
-}
-
-button:hover{
-background:#ff00ff;
-color:black;
-}
-
-input{
-padding:6px;
-background:black;
-color:#00ffff;
-border:1px solid #00ffff;
+0%{text-shadow:3px 0 #ff00ff,-3px 0 #00ffff}
+50%{text-shadow:-3px 0 #ff00ff,3px 0 #00ffff}
+100%{text-shadow:3px 0 #ff00ff,-3px 0 #00ffff}
 }
 
 .layout{
@@ -61,28 +34,42 @@ display:flex;
 height:80%;
 }
 
-.left{
-flex:1;
-display:flex;
-flex-direction:column;
-}
-
+.left{flex:1}
 .right{
 width:250px;
 border-left:2px solid #00ffff;
-padding:10px;
+padding-left:10px;
+}
+
+button{
+padding:8px 16px;
+background:transparent;
+border:2px solid #ff00ff;
+color:#ff00ff;
+margin:5px;
+cursor:pointer;
+}
+
+button:hover{
+background:#ff00ff;
+color:black;
+}
+
+input,select{
+padding:6px;
+background:black;
+color:#00ffff;
+border:1px solid #00ffff;
+margin:5px;
 }
 
 .player{
 border:1px solid #ff00ff;
-margin:5px;
 padding:5px;
+margin:5px;
 }
 
-.dead{
-opacity:0.3;
-text-decoration:line-through;
-}
+.dead{opacity:0.3;text-decoration:line-through}
 
 #chatBox{
 height:150px;
@@ -103,10 +90,10 @@ position:absolute;
 border:1px solid #ff00ff;
 padding:4px;
 }
+
 .arrow{
 position:absolute;
-width:0;
-height:0;
+width:0;height:0;
 border-left:10px solid transparent;
 border-right:10px solid transparent;
 border-bottom:20px solid yellow;
@@ -118,14 +105,12 @@ transform-origin:center bottom;
 
 <div id="start" class="screen active">
 <h1>NIGHT CITY</h1>
-<div style="text-align:center">
-<input id="nameInput" placeholder="NAME">
+<input id="nameInput" placeholder="Name">
 <button id="enterBtn">ENTER</button>
-</div>
 </div>
 
 <div id="menu" class="screen">
-<h1>LOBBIES</h1>
+<h1>LOBBY LIST</h1>
 <button id="createPublic">CREATE PUBLIC</button>
 <button id="createPrivate">CREATE PRIVATE</button>
 <input id="joinInput" placeholder="CODE">
@@ -138,33 +123,33 @@ transform-origin:center bottom;
 
 <div class="layout">
 <div class="left">
-<div>
-<button id="startGame">START GAME</button>
+<select id="modifierSelect">
+<option value="6">6 Chambers</option>
+<option value="8">8 Chambers</option>
+<option value="double">Double Bullet</option>
+</select>
+
+<button id="startGame">START</button>
 <button id="addKi">ADD KI</button>
 <button id="leaveLobby">LEAVE</button>
-</div>
 
 <div id="chatBox"></div>
 <input id="chatInput">
 <button id="sendChat">SEND</button>
-
 </div>
 
 <div class="right">
 <h3>PLAYERS</h3>
 <div id="playerList"></div>
 </div>
-
 </div>
 </div>
 
 <div id="game" class="screen">
 <h1>GAME</h1>
 <div id="playersCircle"></div>
-<div style="text-align:center">
 <button id="shootBtn">SHOOT</button>
 <button id="giveUpBtn">GIVE UP</button>
-</div>
 </div>
 
 <script type="module">
@@ -183,10 +168,13 @@ const app=initializeApp(config);
 const db=getDatabase(app);
 const auth=getAuth(app);
 
-let user,name,lobbyCode,myKey,isHost=false,players=[],turn=0;
+let user,name,lobbyId,myKey,isHost=false,players=[],turn=0;
 
 signInAnonymously(auth);
-onAuthStateChanged(auth,u=>user=u);
+
+onAuthStateChanged(auth,u=>{
+user=u;
+});
 
 function show(id){
 document.querySelectorAll(".screen").forEach(s=>s.classList.remove("active"));
@@ -204,9 +192,9 @@ onValue(ref(db,"lobbies"),snap=>{
 const data=snap.val();
 let html="";
 if(data){
-for(let code in data){
-if(data[code].public){
-html+=`<div>${code}</div>`;
+for(let id in data){
+if(data[id].public){
+html+=`<div>${id}</div>`;
 }
 }
 }
@@ -218,10 +206,15 @@ createPublic.onclick=()=>createLobby(true);
 createPrivate.onclick=()=>createLobby(false);
 
 function createLobby(pub){
-lobbyCode=Math.random().toString(36).substring(2,6).toUpperCase();
+lobbyId=Math.random().toString(36).substring(2,6).toUpperCase();
 isHost=true;
-set(ref(db,"lobbies/"+lobbyCode),{public:pub});
-joinLobby(lobbyCode);
+set(ref(db,"lobbies/"+lobbyId),{
+public:pub,
+hostUid:user.uid,
+modifier:"6",
+state:"lobby"
+});
+joinLobby(lobbyId);
 }
 
 joinBtn.onclick=()=>{
@@ -229,16 +222,12 @@ const code=joinInput.value.toUpperCase();
 if(code) joinLobby(code);
 };
 
-function joinLobby(code){
-lobbyCode=code;
+function joinLobby(id){
+lobbyId=id;
 show("lobby");
-lobbyCodeDisplay.innerText="CODE: "+code;
-}
+lobbyCode.innerText="CODE: "+id;
 
-const lobbyCodeDisplay=document.getElementById("lobbyCode");
-
-function setupPlayer(){
-const pRef=push(ref(db,"lobbies/"+lobbyCode+"/players"));
+const pRef=push(ref(db,"lobbies/"+id+"/players"));
 myKey=pRef.key;
 set(pRef,{
 name:name,
@@ -247,30 +236,24 @@ alive:true,
 isKI:false
 });
 pRef.onDisconnect().remove();
-}
 
-function listenLobby(){
-onValue(ref(db,"lobbies/"+lobbyCode),snap=>{
+onValue(ref(db,"lobbies/"+id),snap=>{
 const data=snap.val();
 if(!data){show("menu");return;}
 
+isHost=(data.hostUid===user.uid);
 players=Object.entries(data.players||{}).map(([k,v])=>({key:k,...v}));
+
 renderPlayers();
+renderChat(data.chat);
+document.getElementById("modifierSelect").value=data.modifier;
 
-const humans=players.filter(p=>!p.isKI);
-if(isHost && humans.length===0){
-remove(ref(db,"lobbies/"+lobbyCode));
+if(data.state==="game"){
+show("game");
+renderCircle();
 }
 });
 }
-
-joinLobby=(code=>{
-lobbyCode=code;
-show("lobby");
-lobbyCodeDisplay.innerText="CODE: "+code;
-setupPlayer();
-listenLobby();
-});
 
 function renderPlayers(){
 let html="";
@@ -278,10 +261,23 @@ players.forEach(p=>{
 html+=`<div class="player ${p.alive?'':'dead'}">${p.name}${p.isKI?' 🤖':''}</div>`;
 });
 playerList.innerHTML=html;
+
+const humans=players.filter(p=>!p.isKI);
+if(isHost && humans.length===0){
+remove(ref(db,"lobbies/"+lobbyId));
+}
 }
 
+modifierSelect.onchange=()=>{
+if(isHost){
+update(ref(db,"lobbies/"+lobbyId),{
+modifier:modifierSelect.value
+});
+}
+};
+
 addKi.onclick=()=>{
-push(ref(db,"lobbies/"+lobbyCode+"/players"),{
+push(ref(db,"lobbies/"+lobbyId+"/players"),{
 name:"KI-"+Math.floor(Math.random()*100),
 uid:"KI"+Date.now(),
 alive:true,
@@ -290,14 +286,34 @@ isKI:true
 };
 
 leaveLobby.onclick=()=>{
-if(myKey){
-remove(ref(db,"lobbies/"+lobbyCode+"/players/"+myKey));
-}
+remove(ref(db,"lobbies/"+lobbyId+"/players/"+myKey));
 };
 
+sendChat.onclick=()=>{
+let text=chatInput.value;
+if(!text)return;
+push(ref(db,"lobbies/"+lobbyId+"/chat"),{
+name:name,
+text:text
+});
+chatInput.value="";
+};
+
+function renderChat(chat){
+if(!chat)return;
+let html="";
+Object.values(chat).forEach(m=>{
+html+=`<div><b>${m.name}:</b> ${m.text}</div>`;
+});
+chatBox.innerHTML=html;
+}
+
 startGame.onclick=()=>{
-show("game");
-renderCircle();
+if(!isHost)return;
+update(ref(db,"lobbies/"+lobbyId),{
+state:"game",
+turn:0
+});
 };
 
 function renderCircle(){
@@ -305,10 +321,12 @@ playersCircle.innerHTML="";
 let n=players.length;
 let r=150;
 let center=200;
+
 players.forEach((p,i)=>{
 let angle=(2*Math.PI*i/n);
 let x=center+r*Math.cos(angle);
 let y=center+r*Math.sin(angle);
+
 let div=document.createElement("div");
 div.className="card";
 div.style.left=x+"px";
