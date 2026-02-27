@@ -14,14 +14,16 @@ body{margin:0;height:100vh;background:var(--dark);color:#e8f0ff;font-family:'Cou
 .screen button:hover{background:var(--pink);color:#000;}
 .layout{display:flex;width:100%;max-width:1200px;margin-top:20px;}
 .left{flex:1;}
-.right{width:300px;border-left:2px solid var(--cyan);padding-left:10px;}
-.player{border:1px solid var(--pink);margin:5px;padding:5px;}
+.right{width:300px;border-left:2px solid var(--cyan);padding-left:10px;overflow-y:auto;max-height:400px;}
+.player{border:1px solid var(--pink);margin:5px;padding:5px;border-radius:5px;text-align:center;}
 .dead{opacity:0.3;text-decoration:line-through;}
 #chatBox{height:150px;overflow-y:auto;border:1px solid var(--cyan);margin-top:10px;padding:5px;background:#0a0015;}
-#gameScreen #gun{font-size:260px;transform:rotate(-15deg);filter:drop-shadow(0 0 80px var(--pink));cursor:pointer;transition:all 0.5s;}
-#gameScreen #gun.shoot{transform:rotate(-15deg) translateY(-80px) scale(1.3);filter:drop-shadow(0 0 180px #ff0044) brightness(2);}
-#status{text-align:center;margin:40px;font-size:2rem;}
-#currentTurn{position:absolute;width:50px;height:50px;border:3px solid #ffff66;border-radius:50%;pointer-events:none;}
+#gameArea{position:relative;width:600px;height:600px;margin:50px;}
+#circle{position:absolute;inset:0;border-radius:50%;border:2px solid var(--cyan);}
+.playerLabel{position:absolute;transform:translate(-50%,-50%);}
+#arrow{position:absolute;width:0;height:0;border-left:20px solid transparent;border-right:20px solid transparent;border-bottom:40px solid yellow;top:-50px;left:50%;transform-origin:center bottom;transition:transform 0.5s;}
+#gun{font-size:100px;cursor:pointer;user-select:none;}
+#status{text-align:center;margin:20px;font-size:2rem;}
 </style>
 </head>
 <body>
@@ -68,27 +70,28 @@ body{margin:0;height:100vh;background:var(--dark);color:#e8f0ff;font-family:'Cou
 <!-- GAME SCREEN -->
 <div id="gameScreen" class="screen">
 <h1 class="title" data-text="GAME ON">GAME ON</h1>
-<div id="currentTurnDisplay"></div>
-<div id="gun">🔫</div>
 <div id="status">Waiting to start...</div>
-<div class="layout">
-<div class="right">
-<h3>PLAYERS</h3>
-<div id="gamePlayers"></div>
-</div>
+<div id="gameArea">
+<div id="circle"></div>
+<div id="arrow"></div>
+<div id="gun">🔫</div>
 </div>
 <button id="spinBtn">SPIN CHAMBER</button>
 <button id="shootBtn">SHOOT ×1</button>
 <button id="doubleShootBtn">SHOOT ×2</button>
 <button id="giveUpBtn">GIVE UP</button>
+<div class="right">
+<h3>PLAYERS</h3>
+<div id="gamePlayers"></div>
+</div>
 </div>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
-import { getDatabase, ref, set, push, onValue, get, remove, onDisconnect } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-database.js";
+import { getDatabase, ref, set, push, onValue, get, remove, onDisconnect, update } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-database.js";
 import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-auth.js";
 
-// Firebase config
+// Firebase
 const firebaseConfig = {
 apiKey: "AIzaSyBa5w0hQ1v7Nowk-BvDgkGeNRNf1WJtDgw",
 authDomain: "rrweb-dc73f.firebaseapp.com",
@@ -98,12 +101,12 @@ storageBucket: "rrweb-dc73f.appspot.com",
 messagingSenderId: "247426843219",
 appId: "1:247426843219:web:c466e97fd59ee160c9bca6"
 };
-
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 const auth = getAuth(app);
 
-let currentUser=null, userReady=false, lobbyId=null, myKey=null, isHost=false, players=[], gameState=null;
+let currentUser=null, userReady=false, lobbyId=null, myKey=null, isHost=false;
+let players=[], gameState=null;
 let playerName="";
 
 // Elements
@@ -129,14 +132,16 @@ const chatInput=document.getElementById('chatInput');
 const sendBtn=document.getElementById('sendBtn');
 const startGameBtn=document.getElementById('startGameBtn');
 
-const currentTurnDisplay=document.getElementById('currentTurnDisplay');
-const gun=document.getElementById('gun');
 const statusDisplay=document.getElementById('status');
 const gamePlayers=document.getElementById('gamePlayers');
 const spinBtn=document.getElementById('spinBtn');
 const shootBtn=document.getElementById('shootBtn');
 const doubleShootBtn=document.getElementById('doubleShootBtn');
 const giveUpBtn=document.getElementById('giveUpBtn');
+const gameArea=document.getElementById('gameArea');
+const circle=document.getElementById('circle');
+const arrow=document.getElementById('arrow');
+const gun=document.getElementById('gun');
 
 // --- Auth ---
 signInAnonymously(auth).catch(console.error);
@@ -145,11 +150,11 @@ onAuthStateChanged(auth,u=>{ if(u){ currentUser=u; userReady=true; }});
 // --- Screens ---
 function showScreen(screen){ [startScreen,menuScreen,lobbyScreen,gameScreen].forEach(s=>s.classList.remove('active')); screen.classList.add('active'); }
 
-// --- Enter Name ---
+// --- Enter ---
 enterBtn.onclick=()=>{ playerName=nameInput.value||"Choom"; showScreen(menuScreen); loadPublicServers(); };
 nameInput.addEventListener('keydown',e=>{ if(e.key==="Enter") enterBtn.click(); });
 
-// --- Lobby ---
+// --- Lobby Functions ---
 function generateLobbyID(){ return Math.random().toString(36).substring(2,6).toUpperCase(); }
 async function createLobby(isPublic, code=null){
 if(!userReady){ alert("Auth not ready"); return; }
@@ -167,7 +172,7 @@ const data=snap.val();
 if(!data.public && joinCodeInput.value!==data.privateCode){ alert("Wrong code"); return; }
 lobbyId=id; isHost=(data.hostUid===currentUser.uid);
 const pRef=push(ref(db,"lobbies/"+lobbyId+"/players"));
-myKey=pRef.key; set(pRef,{name:playerName,uid:currentUser.uid,isKI:false});
+myKey=pRef.key; set(pRef,{name:playerName,uid:currentUser.uid,isKI:false,alive:true});
 onDisconnect(pRef).remove();
 listenLobby();
 showScreen(lobbyScreen);
@@ -189,8 +194,7 @@ if(isHost && humanCount===0) remove(ref(db,"lobbies/"+lobbyId));
 if(data.gameState && data.gameState.started){
 gameState=data.gameState;
 showScreen(gameScreen);
-// game logic update placeholder
-currentTurnDisplay.textContent = "Game started!";
+renderGameCircle();
 }
 });
 }
@@ -206,7 +210,7 @@ let html=""; for(let k in chatObj) html+=`<div><b>${chatObj[k].name}:</b> ${chat
 chatBox.innerHTML=html;
 }
 
-addKiBtn.onclick=()=>push(ref(db,"lobbies/"+lobbyId+"/players"),{name:"AI-"+Math.floor(Math.random()*100),uid:"AI"+Date.now(),isKI:true});
+addKiBtn.onclick=()=>push(ref(db,"lobbies/"+lobbyId+"/players"),{name:"AI-"+Math.floor(Math.random()*100),uid:"AI"+Date.now(),isKI:true,alive:true});
 leaveBtn.onclick=()=>{ if(myKey) remove(ref(db,"lobbies/"+lobbyId+"/players/"+myKey)); showScreen(menuScreen); loadPublicServers(); };
 sendBtn.onclick=()=>{ if(chatInput.value) push(ref(db,"lobbies/"+lobbyId+"/chat"),{name:playerName,text:chatInput.value}); chatInput.value=""; };
 
@@ -219,6 +223,32 @@ currentPos:0, currentTurn:0, chambers:6
 });
 };
 
+// --- Circle Rendering ---
+function renderGameCircle(){
+const num=players.length; const radius=200; const cx=300; const cy=300;
+gameArea.querySelectorAll('.playerLabel').forEach(el=>el.remove());
+for(let i=0;i<num;i++){
+const angle=(i/num)*2*Math.PI;
+const x=cx+radius*Math.cos(angle);
+const y=cy+radius*Math.sin(angle);
+const label=document.createElement('div');
+label.className='playerLabel';
+label.style.left=x+'px'; label.style.top=y+'px';
+label.textContent=players[i].name;
+gameArea.appendChild(label);
+}
+rotateArrow();
+}
+
+// --- Arrow ---
+function rotateArrow(){
+if(!gameState) return;
+const num=players.length;
+const angle=(gameState.currentTurn/num)*360;
+arrow.style.transform=`rotate(${angle}deg)`;
+}
+
+// --- Load public servers ---
 function loadPublicServers(){
 onValue(ref(db,"lobbies"),snap=>{
 const data=snap.val(); let html="";
