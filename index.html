@@ -85,7 +85,7 @@ body{margin:0;height:100vh;background:var(--dark);color:#e8f0ff;font-family:'Cou
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
-import { getDatabase, ref, set, push, onValue, get, remove, onDisconnect, update, runTransaction } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-database.js";
+import { getDatabase, ref, set, push, onValue, get, remove, onDisconnect } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-database.js";
 import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-auth.js";
 
 // Firebase config
@@ -103,7 +103,6 @@ const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 const auth = getAuth(app);
 
-// Variables
 let currentUser=null, userReady=false, lobbyId=null, myKey=null, isHost=false, players=[], gameState=null;
 let playerName="";
 
@@ -175,7 +174,7 @@ showScreen(lobbyScreen);
 }
 joinBtn.onclick=()=>joinLobby(joinLobbyInput.value.toUpperCase());
 
-// --- Lobby Listeners ---
+// --- Lobby Listener ---
 function listenLobby(){
 onValue(ref(db,"lobbies/"+lobbyId),snap=>{
 const data=snap.val();
@@ -186,6 +185,13 @@ renderChat(data.chat||{});
 let humanCount=0;
 for(let k in data.players) if(!data.players[k].isKI) humanCount++;
 if(isHost && humanCount===0) remove(ref(db,"lobbies/"+lobbyId));
+
+if(data.gameState && data.gameState.started){
+gameState=data.gameState;
+showScreen(gameScreen);
+// game logic update placeholder
+currentTurnDisplay.textContent = "Game started!";
+}
 });
 }
 
@@ -204,6 +210,15 @@ addKiBtn.onclick=()=>push(ref(db,"lobbies/"+lobbyId+"/players"),{name:"AI-"+Math
 leaveBtn.onclick=()=>{ if(myKey) remove(ref(db,"lobbies/"+lobbyId+"/players/"+myKey)); showScreen(menuScreen); loadPublicServers(); };
 sendBtn.onclick=()=>{ if(chatInput.value) push(ref(db,"lobbies/"+lobbyId+"/chat"),{name:playerName,text:chatInput.value}); chatInput.value=""; };
 
+startGameBtn.onclick=async()=>{
+if(!isHost){ alert("Only host can start game"); return; }
+if(players.length<2){ alert("Need at least 2 players"); return; }
+await set(ref(db,"lobbies/"+lobbyId+"/gameState"),{
+started:true, bulletPos:Math.floor(Math.random()*6),
+currentPos:0, currentTurn:0, chambers:6
+});
+};
+
 function loadPublicServers(){
 onValue(ref(db,"lobbies"),snap=>{
 const data=snap.val(); let html="";
@@ -212,5 +227,6 @@ serverList.innerHTML=html;
 });
 }
 </script>
+
 </body>
 </html>
