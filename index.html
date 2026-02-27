@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -29,19 +29,19 @@ body{margin:0;height:100vh;background:var(--dark);color:#e8f0ff;font-family:'Cou
 <!-- START SCREEN -->
 <div id="startScreen" class="screen active">
 <h1 class="title" data-text="RUSSIAN ROULETTE">RUSSIAN ROULETTE</h1>
-<input id="nameInput" placeholder="DEIN HANDLE / NICKNAME" maxlength="16">
+<input id="nameInput" placeholder="YOUR HANDLE / NICKNAME" maxlength="16">
 <button id="enterBtn">ENTER</button>
 </div>
 
 <!-- MENU SCREEN -->
 <div id="menuScreen" class="screen">
 <h1 class="title" data-text="NIGHT CITY">NIGHT CITY</h1>
-<button id="createPublicBtn">CREATE PUBLIC</button>
+<button id="createPublicBtn">CREATE PUBLIC LOBBY</button>
 <input id="privateCodeInput" placeholder="Private Code">
-<button id="createPrivateBtn">CREATE PRIVATE</button>
+<button id="createPrivateBtn">CREATE PRIVATE LOBBY</button>
 <input id="joinLobbyInput" placeholder="Lobby ID">
-<input id="joinCodeInput" placeholder="Code falls privat">
-<button id="joinBtn">JOIN</button>
+<input id="joinCodeInput" placeholder="Code if private">
+<button id="joinBtn">JOIN LOBBY</button>
 <h3>Public Servers</h3>
 <div id="serverList"></div>
 </div>
@@ -52,9 +52,9 @@ body{margin:0;height:100vh;background:var(--dark);color:#e8f0ff;font-family:'Cou
 <div class="layout">
 <div class="left">
 <button id="leaveBtn">LEAVE</button>
-<button id="addKiBtn">ADD KI</button>
+<button id="addKiBtn">ADD AI PLAYER</button>
 <div id="chatBox"></div>
-<input id="chatInput" placeholder="Nachricht">
+<input id="chatInput" placeholder="Message">
 <button id="sendBtn">SEND</button>
 </div>
 <div class="right">
@@ -70,7 +70,7 @@ body{margin:0;height:100vh;background:var(--dark);color:#e8f0ff;font-family:'Cou
 <h1 class="title" data-text="GAME ON">GAME ON</h1>
 <div id="currentTurnDisplay"></div>
 <div id="gun">🔫</div>
-<div id="status"></div>
+<div id="status">Waiting to start...</div>
 <div class="layout">
 <div class="right">
 <h3>PLAYERS</h3>
@@ -88,7 +88,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebas
 import { getDatabase, ref, set, push, onValue, get, remove, onDisconnect, update, runTransaction } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-database.js";
 import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-auth.js";
 
-// --- Firebase ---
+// Firebase config
 const firebaseConfig = {
 apiKey: "AIzaSyBa5w0hQ1v7Nowk-BvDgkGeNRNf1WJtDgw",
 authDomain: "rrweb-dc73f.firebaseapp.com",
@@ -98,14 +98,16 @@ storageBucket: "rrweb-dc73f.appspot.com",
 messagingSenderId: "247426843219",
 appId: "1:247426843219:web:c466e97fd59ee160c9bca6"
 };
+
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 const auth = getAuth(app);
 
+// Variables
 let currentUser=null, userReady=false, lobbyId=null, myKey=null, isHost=false, players=[], gameState=null;
 let playerName="";
 
-// --- Elements ---
+// Elements
 const startScreen=document.getElementById('startScreen');
 const menuScreen=document.getElementById('menuScreen');
 const lobbyScreen=document.getElementById('lobbyScreen');
@@ -138,20 +140,20 @@ const doubleShootBtn=document.getElementById('doubleShootBtn');
 const giveUpBtn=document.getElementById('giveUpBtn');
 
 // --- Auth ---
-signInAnonymously(auth).catch(e=>console.error(e));
+signInAnonymously(auth).catch(console.error);
 onAuthStateChanged(auth,u=>{ if(u){ currentUser=u; userReady=true; }});
 
 // --- Screens ---
 function showScreen(screen){ [startScreen,menuScreen,lobbyScreen,gameScreen].forEach(s=>s.classList.remove('active')); screen.classList.add('active'); }
 
-// --- Start Name ---
+// --- Enter Name ---
 enterBtn.onclick=()=>{ playerName=nameInput.value||"Choom"; showScreen(menuScreen); loadPublicServers(); };
+nameInput.addEventListener('keydown',e=>{ if(e.key==="Enter") enterBtn.click(); });
 
-// --- Lobby Helpers ---
+// --- Lobby ---
 function generateLobbyID(){ return Math.random().toString(36).substring(2,6).toUpperCase(); }
-
 async function createLobby(isPublic, code=null){
-if(!userReady){ alert("Auth noch nicht fertig"); return; }
+if(!userReady){ alert("Auth not ready"); return; }
 lobbyId=generateLobbyID(); isHost=true;
 await set(ref(db,"lobbies/"+lobbyId),{public:isPublic,privateCode:code||null,hostUid:currentUser.uid,createdAt:Date.now()});
 joinLobby(lobbyId);
@@ -161,9 +163,9 @@ createPrivateBtn.onclick=()=>createLobby(false,privateCodeInput.value.trim());
 
 async function joinLobby(id){
 const snap=await get(ref(db,"lobbies/"+id));
-if(!snap.exists()){ alert("Lobby nicht gefunden"); return; }
+if(!snap.exists()){ alert("Lobby not found"); return; }
 const data=snap.val();
-if(!data.public && joinCodeInput.value!==data.privateCode){ alert("Falscher Code"); return; }
+if(!data.public && joinCodeInput.value!==data.privateCode){ alert("Wrong code"); return; }
 lobbyId=id; isHost=(data.hostUid===currentUser.uid);
 const pRef=push(ref(db,"lobbies/"+lobbyId+"/players"));
 myKey=pRef.key; set(pRef,{name:playerName,uid:currentUser.uid,isKI:false});
@@ -173,6 +175,7 @@ showScreen(lobbyScreen);
 }
 joinBtn.onclick=()=>joinLobby(joinLobbyInput.value.toUpperCase());
 
+// --- Lobby Listeners ---
 function listenLobby(){
 onValue(ref(db,"lobbies/"+lobbyId),snap=>{
 const data=snap.val();
@@ -180,7 +183,6 @@ if(!data){ showScreen(menuScreen); return; }
 lobbyCodeDisplay.textContent=lobbyId;
 renderPlayers(data.players||{});
 renderChat(data.chat||{});
-// delete lobby if no human
 let humanCount=0;
 for(let k in data.players) if(!data.players[k].isKI) humanCount++;
 if(isHost && humanCount===0) remove(ref(db,"lobbies/"+lobbyId));
@@ -198,7 +200,7 @@ let html=""; for(let k in chatObj) html+=`<div><b>${chatObj[k].name}:</b> ${chat
 chatBox.innerHTML=html;
 }
 
-addKiBtn.onclick=()=>push(ref(db,"lobbies/"+lobbyId+"/players"),{name:"KI-"+Math.floor(Math.random()*100),uid:"KI"+Date.now(),isKI:true});
+addKiBtn.onclick=()=>push(ref(db,"lobbies/"+lobbyId+"/players"),{name:"AI-"+Math.floor(Math.random()*100),uid:"AI"+Date.now(),isKI:true});
 leaveBtn.onclick=()=>{ if(myKey) remove(ref(db,"lobbies/"+lobbyId+"/players/"+myKey)); showScreen(menuScreen); loadPublicServers(); };
 sendBtn.onclick=()=>{ if(chatInput.value) push(ref(db,"lobbies/"+lobbyId+"/chat"),{name:playerName,text:chatInput.value}); chatInput.value=""; };
 
@@ -207,10 +209,8 @@ onValue(ref(db,"lobbies"),snap=>{
 const data=snap.val(); let html="";
 if(data) for(let id in data) if(data[id].public) html+=`<div>${id}</div>`;
 serverList.innerHTML=html;
-}
-
+});
 }
 </script>
-
 </body>
 </html>
