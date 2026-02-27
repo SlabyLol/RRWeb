@@ -4,74 +4,65 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>NIGHT CITY RR</title>
-
 <style>
-:root {
-  --pink: #ff0044;
-  --cyan: #00ffff;
-  --dark: #0a0015;
-}
-body {margin:0; height:100vh; background:var(--dark); color:#e8f0ff; font-family:'Courier New',monospace; overflow:hidden;}
-.screen { position:absolute; inset:0; display:none; flex-direction:column; align-items:center; justify-content:center; z-index:10; padding:20px; }
-.screen.active { display:flex; }
-h1.title { font-size:clamp(5rem, 15vw, 12rem); font-weight:900; text-transform:uppercase; letter-spacing:0.5em; color:#fff; text-shadow:0 0 25px var(--cyan), 0 0 70px var(--pink); position:relative; animation:glitch 5s infinite; }
-@keyframes glitch {0%,100%{transform:translate(0)}3%,7%,11%{transform:translate(6px,-5px)}}
-button, input { padding:12px 20px; margin:5px; font-size:1.5rem; color:var(--pink); background:transparent; border:2px solid var(--pink); cursor:pointer; }
-button:hover { background:var(--pink); color:#000; }
-.layout { display:flex; width:100%; max-width:1200px; margin-top:20px; }
-.left { flex:1; }
-.right { width:250px; border-left:2px solid var(--cyan); padding-left:10px; }
-.player { border:1px solid var(--pink); margin:5px; padding:5px; }
-.dead { opacity:0.3; text-decoration:line-through; }
-#chatBox { height:150px; overflow-y:auto; border:1px solid var(--cyan); margin-top:10px; padding:5px; background:#0a0015; }
+:root{--pink:#ff0044;--cyan:#00ffff;--dark:#0a0015;}
+body{margin:0;background:var(--dark);color:white;font-family:'Courier New',monospace;overflow:hidden;}
+.screen{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;padding:20px;}
+.screen.active{display:flex;}
+h1.title{font-size:clamp(5rem,15vw,12rem);font-weight:900;text-transform:uppercase;letter-spacing:0.5em;color:#fff;text-shadow:0 0 25px var(--cyan),0 0 70px var(--pink);}
+button,input{padding:12px 20px;margin:5px;font-size:1.5rem;color:var(--pink);background:transparent;border:2px solid var(--pink);cursor:pointer;}
+button:hover{background:var(--pink);color:#000;}
+.layout{display:flex;width:100%;max-width:1200px;margin-top:20px;}
+.left{flex:1;}
+.right{width:250px;border-left:2px solid var(--cyan);padding-left:10px;}
+.player{border:1px solid var(--pink);margin:5px;padding:5px;}
+.dead{opacity:0.3;text-decoration:line-through;}
+#chatBox{height:150px;overflow-y:auto;border:1px solid var(--cyan);margin-top:10px;padding:5px;background:#0a0015;}
 </style>
 </head>
 <body>
 
-<!-- START SCREEN -->
 <div id="startScreen" class="screen active">
-  <h1 class="title">NIGHT CITY</h1>
-  <input id="nameInput" placeholder="DEIN NAME">
-  <button id="enterBtn">ENTER</button>
+<h1 class="title">NIGHT CITY</h1>
+<input id="nameInput" placeholder="DEIN NAME">
+<button id="enterBtn">ENTER</button>
 </div>
 
-<!-- MENU -->
 <div id="menuScreen" class="screen">
-  <h1 class="title">LOBBIES</h1>
-  <button id="createPublicBtn">CREATE PUBLIC</button>
-  <input id="privateCodeInput" placeholder="Private Code">
-  <button id="createPrivateBtn">CREATE PRIVATE</button>
-  <input id="joinLobbyInput" placeholder="Lobby ID">
-  <input id="joinCodeInput" placeholder="Code falls privat">
-  <button id="joinBtn">JOIN</button>
-  <h3>Public Servers</h3>
-  <div id="serverList"></div>
+<h1 class="title">LOBBIES</h1>
+<button id="createPublicBtn">CREATE PUBLIC</button>
+<input id="privateCodeInput" placeholder="Private Code">
+<button id="createPrivateBtn">CREATE PRIVATE</button>
+<input id="joinLobbyInput" placeholder="Lobby ID">
+<input id="joinCodeInput" placeholder="Code falls privat">
+<button id="joinBtn">JOIN</button>
+<h3>Public Servers</h3>
+<div id="serverList"></div>
 </div>
 
-<!-- LOBBY -->
 <div id="lobbyScreen" class="screen">
-  <h1 class="title" id="lobbyHeader">LOBBY</h1>
-  <div class="layout">
-    <div class="left">
-      <button id="leaveBtn">LEAVE</button>
-      <button id="addKiBtn">ADD KI</button>
-      <div id="chatBox"></div>
-      <input id="chatInput" placeholder="Nachricht">
-      <button id="sendBtn">SEND</button>
-    </div>
-    <div class="right">
-      <h3>PLAYERS</h3>
-      <div id="playerList"></div>
-    </div>
-  </div>
+<h1 class="title" id="lobbyHeader">LOBBY</h1>
+<div class="layout">
+<div class="left">
+<button id="leaveBtn">LEAVE</button>
+<button id="addKiBtn">ADD KI</button>
+<div id="chatBox"></div>
+<input id="chatInput" placeholder="Nachricht">
+<button id="sendBtn">SEND</button>
+</div>
+<div class="right">
+<h3>PLAYERS</h3>
+<div id="playerList"></div>
+</div>
+</div>
 </div>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
-import { getDatabase, ref, set, push, onValue, get, remove } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-database.js";
+import { getDatabase, ref, set, push, onValue, get, remove, onDisconnect } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-database.js";
 import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-auth.js";
 
-// === FIREBASE CONFIG HIER DEIN KEY EINFÜGEN ===
+// --- FIREBASE CONFIG ---
 const firebaseConfig = {
   apiKey: "AIzaSyBa5w0hQ1v7Nowk-BvDgkGeNRNf1WJtDgw",
   authDomain: "rrweb-dc73f.firebaseapp.com",
@@ -86,49 +77,38 @@ const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 const auth = getAuth(app);
 
-let userReady = false;
-let currentUser = null;
-let lobbyId = null;
-let myKey = null;
-let isHost = false;
+let userReady=false, currentUser=null, lobbyId=null, myKey=null, isHost=false;
+const startScreen=document.getElementById('startScreen');
+const menuScreen=document.getElementById('menuScreen');
+const lobbyScreen=document.getElementById('lobbyScreen');
+const nameInput=document.getElementById('nameInput');
+const enterBtn=document.getElementById('enterBtn');
+const createPublicBtn=document.getElementById('createPublicBtn');
+const createPrivateBtn=document.getElementById('createPrivateBtn');
+const privateCodeInput=document.getElementById('privateCodeInput');
+const joinLobbyInput=document.getElementById('joinLobbyInput');
+const joinCodeInput=document.getElementById('joinCodeInput');
+const joinBtn=document.getElementById('joinBtn');
+const serverList=document.getElementById('serverList');
+const lobbyHeader=document.getElementById('lobbyHeader');
+const leaveBtn=document.getElementById('leaveBtn');
+const addKiBtn=document.getElementById('addKiBtn');
+const playerList=document.getElementById('playerList');
+const chatBox=document.getElementById('chatBox');
+const chatInput=document.getElementById('chatInput');
+const sendBtn=document.getElementById('sendBtn');
 
-const startScreen = document.getElementById('startScreen');
-const menuScreen = document.getElementById('menuScreen');
-const lobbyScreen = document.getElementById('lobbyScreen');
-const nameInput = document.getElementById('nameInput');
-const enterBtn = document.getElementById('enterBtn');
-const createPublicBtn = document.getElementById('createPublicBtn');
-const createPrivateBtn = document.getElementById('createPrivateBtn');
-const privateCodeInput = document.getElementById('privateCodeInput');
-const joinLobbyInput = document.getElementById('joinLobbyInput');
-const joinCodeInput = document.getElementById('joinCodeInput');
-const joinBtn = document.getElementById('joinBtn');
-const serverList = document.getElementById('serverList');
-const lobbyHeader = document.getElementById('lobbyHeader');
-const leaveBtn = document.getElementById('leaveBtn');
-const addKiBtn = document.getElementById('addKiBtn');
-const playerList = document.getElementById('playerList');
-const chatBox = document.getElementById('chatBox');
-const chatInput = document.getElementById('chatInput');
-const sendBtn = document.getElementById('sendBtn');
-
-let playerName = "";
+let playerName="";
 
 // --- AUTH ---
 signInAnonymously(auth).catch(err=>console.error("Auth error:",err));
-onAuthStateChanged(auth,u=>{
-  if(u){ currentUser=u; userReady=true; console.log("Auth ready", u.uid);}
-});
+onAuthStateChanged(auth,u=>{ if(u){ currentUser=u; userReady=true; console.log("Auth ready",u.uid); }});
 
 // --- SCREEN SWITCH ---
-function showScreen(screen){ [startScreen,menuScreen,lobbyScreen].forEach(s=>s.classList.remove('active')); screen.classList.add('active'); }
+function showScreen(screen){ [startScreen,menuScreen,lobbyScreen].forEach(s=>s.classList.remove('active')); screen.classList.add('active');}
 
 // --- ENTER NAME ---
-enterBtn.onclick=()=>{
-  playerName=nameInput.value||"Player";
-  showScreen(menuScreen);
-  loadPublicServers();
-};
+enterBtn.onclick=()=>{ playerName=nameInput.value||"Player"; showScreen(menuScreen); loadPublicServers(); };
 
 // --- GENERATE LOBBY ID ---
 function generateLobbyID(){ return Math.random().toString(36).substring(2,6).toUpperCase(); }
@@ -136,13 +116,13 @@ function generateLobbyID(){ return Math.random().toString(36).substring(2,6).toU
 // --- CREATE LOBBY ---
 async function createLobby(isPublic, code=null){
   if(!userReady){ alert("Auth noch nicht fertig"); return; }
-  lobbyId = generateLobbyID();
-  isHost=true;
+  if(!isPublic && !code){ alert("Code fehlt"); return; } // fix private
+  lobbyId=generateLobbyID(); isHost=true;
   try{
     await set(ref(db,"lobbies/"+lobbyId),{
       public:isPublic,
-      privateCode: code||null,
-      hostUid: currentUser.uid,
+      privateCode:code||null,
+      hostUid:currentUser.uid,
       createdAt:Date.now()
     });
     addMeToLobby();
@@ -151,22 +131,16 @@ async function createLobby(isPublic, code=null){
   }catch(e){ alert("DB ERROR: "+e.message);}
 }
 createPublicBtn.onclick=()=>createLobby(true);
-createPrivateBtn.onclick=()=>{ 
-  const code = privateCodeInput.value.trim();
-  if(!code){ alert("Code fehlt"); return;}
-  createLobby(false, code);
-};
+createPrivateBtn.onclick=()=>createLobby(false,privateCodeInput.value.trim());
 
 // --- JOIN LOBBY ---
 joinBtn.onclick=async()=>{
-  const id = joinLobbyInput.value.toUpperCase();
-  if(!id) return;
-  const snap = await get(ref(db,"lobbies/"+id));
-  if(!snap.exists()){ alert("Lobby nicht gefunden"); return;}
-  const data = snap.val();
-  if(!data.public && joinCodeInput.value!==data.privateCode){ alert("Falscher Code"); return;}
-  lobbyId=id;
-  isHost=(data.hostUid===currentUser.uid);
+  const id=joinLobbyInput.value.toUpperCase(); if(!id) return;
+  const snap=await get(ref(db,"lobbies/"+id));
+  if(!snap.exists()){ alert("Lobby nicht gefunden"); return; }
+  const data=snap.val();
+  if(!data.public && joinCodeInput.value!==data.privateCode){ alert("Falscher Code"); return; }
+  lobbyId=id; isHost=(data.hostUid===currentUser.uid);
   addMeToLobby();
   listenLobby();
   showScreen(lobbyScreen);
@@ -174,18 +148,18 @@ joinBtn.onclick=async()=>{
 
 // --- ADD PLAYER ---
 function addMeToLobby(){
-  const pRef = push(ref(db,"lobbies/"+lobbyId+"/players"));
+  const pRef=push(ref(db,"lobbies/"+lobbyId+"/players"));
   myKey=pRef.key;
-  set(pRef,{ name:playerName, uid:currentUser.uid, isKI:false });
-  pRef.onDisconnect().remove();
+  set(pRef,{name:playerName,uid:currentUser.uid,isKI:false});
+  onDisconnect(pRef).remove(); // <-- FIX MODULAR SDK
 }
 
 // --- LISTEN LOBBY ---
 function listenLobby(){
   onValue(ref(db,"lobbies/"+lobbyId),snap=>{
-    const data = snap.val();
+    const data=snap.val();
     if(!data){ showScreen(menuScreen); return; }
-    lobbyHeader.innerText="Lobby "+lobbyId + (data.public?" (Public)":" (Private)");
+    lobbyHeader.innerText="Lobby "+lobbyId+(data.public?" (Public)":" (Private)");
     renderPlayers(data.players||{});
     renderChat(data.chat||{});
   });
@@ -194,38 +168,25 @@ function listenLobby(){
 // --- RENDER PLAYERS ---
 function renderPlayers(players){
   let html="", humanCount=0;
-  for(let k in players){
-    const p=players[k];
-    if(!p.isKI) humanCount++;
-    html+=`<div class="player">${p.name}${p.isKI?" 🤖":""}</div>`;
-  }
+  for(let k in players){ const p=players[k]; if(!p.isKI) humanCount++; html+=`<div class="player">${p.name}${p.isKI?" 🤖":""}</div>`; }
   playerList.innerHTML=html;
   if(isHost && humanCount===0) remove(ref(db,"lobbies/"+lobbyId));
 }
 
 // --- ADD KI ---
-addKiBtn.onclick=()=>push(ref(db,"lobbies/"+lobbyId+"/players"),{ name:"KI-"+Math.floor(Math.random()*100), uid:"KI"+Date.now(), isKI:true });
+addKiBtn.onclick=()=>push(ref(db,"lobbies/"+lobbyId+"/players"),{name:"KI-"+Math.floor(Math.random()*100),uid:"KI"+Date.now(),isKI:true});
 
 // --- LEAVE ---
 leaveBtn.onclick=()=>{ if(myKey) remove(ref(db,"lobbies/"+lobbyId+"/players/"+myKey)); showScreen(menuScreen); loadPublicServers(); };
 
 // --- CHAT ---
-sendBtn.onclick=()=>{
-  const text=chatInput.value; if(!text) return;
-  push(ref(db,"lobbies/"+lobbyId+"/chat"),{ name:playerName, text });
-  chatInput.value="";
-};
-function renderChat(chat){
-  let html="";
-  for(let k in chat) html+=`<div><b>${chat[k].name}:</b> ${chat[k].text}</div>`;
-  chatBox.innerHTML=html;
-}
+sendBtn.onclick=()=>{ const text=chatInput.value; if(!text) return; push(ref(db,"lobbies/"+lobbyId+"/chat"),{name:playerName,text}); chatInput.value=""; };
+function renderChat(chat){ let html=""; for(let k in chat) html+=`<div><b>${chat[k].name}:</b> ${chat[k].text}</div>`; chatBox.innerHTML=html; }
 
 // --- LOAD PUBLIC SERVERS ---
 function loadPublicServers(){
   onValue(ref(db,"lobbies"),snap=>{
-    const data=snap.val();
-    let html="";
+    const data=snap.val(); let html="";
     if(data) for(let id in data) if(data[id].public) html+=`<div>${id}</div>`;
     serverList.innerHTML=html;
   });
