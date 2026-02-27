@@ -5,20 +5,20 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>RUSSIAN ROULETTE × NIGHT CITY</title>
 <style>
-body{margin:0;background:#0a0015;color:white;font-family:Courier New,monospace;overflow:hidden}
+body{margin:0;background:#0a0015;color:white;font-family:Courier New,monospace;overflow:hidden;}
 .screen{display:none;position:absolute;inset:0;flex-direction:column;align-items:center;justify-content:center;padding:20px;}
-.active{display:flex}
-.title{font-size:6vw;letter-spacing:8px;text-shadow:0 0 20px #00ffff,0 0 50px #ff0044;animation:glitch 3s infinite}
+.active{display:flex;}
+.title{font-size:6vw;letter-spacing:8px;text-shadow:0 0 20px #00ffff,0 0 50px #ff0044;animation:glitch 3s infinite;}
 @keyframes glitch{0%{transform:translate(0)}10%{transform:translate(3px,-3px)}20%{transform:translate(-3px,3px)}30%{transform:translate(0)}}
-button{padding:12px 25px;margin:10px;background:transparent;border:2px solid #ff0044;color:#ff0044;cursor:pointer}
-button:hover{background:#ff0044;color:black}
+button{padding:12px 25px;margin:10px;background:transparent;border:2px solid #ff0044;color:#ff0044;cursor:pointer;}
+button:hover{background:#ff0044;color:black;}
 .playerCard{padding:8px 12px;margin:5px;border:2px solid #c300ff;border-radius:6px;text-align:center;display:inline-block;min-width:80px;}
-.dead{opacity:0.4;text-decoration:line-through}
+.dead{opacity:0.4;text-decoration:line-through;}
 #playersCircle{position:relative;width:400px;height:400px;margin:20px;}
 .currentArrow{position:absolute;width:0;height:0;border-left:15px solid transparent;border-right:15px solid transparent;border-bottom:25px solid #ffff66;transform-origin:center bottom;transition:transform 0.5s;}
-#chatBox, #chatBoxGame{width:300px;height:150px;overflow-y:auto;border:2px solid #00ffff;margin-top:10px;padding:5px}
-#chatInput, #chatInputGame{width:240px;padding:5px;margin-top:5px}
-#particles{position:fixed;inset:0;pointer-events:none;z-index:5}
+#chatBox,#chatBoxGame{width:300px;height:150px;overflow-y:auto;border:2px solid #00ffff;margin-top:10px;padding:5px;}
+#chatInput,#chatInputGame{width:240px;padding:5px;margin-top:5px;}
+#particles{position:fixed;inset:0;pointer-events:none;z-index:5;}
 #winnerText{position:absolute;top:40%;font-size:4rem;color:#ffff66;text-shadow:0 0 20px #ffff66;display:none;animation:pulse 1s infinite alternate;}
 @keyframes pulse{0%{transform:scale(1)}100%{transform:scale(1.2)}}
 </style>
@@ -82,7 +82,6 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebas
 import { getDatabase, ref, onValue, push, set, update, remove, runTransaction } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-database.js";
 import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-auth.js";
 
-// --- Firebase Config ---
 const firebaseConfig = {
   apiKey:"AIzaSyBa5w0hQ1v7Nowk-BvDgkGeNRNf1WJtDgw",
   authDomain:"rrweb-dc73f.firebaseapp.com",
@@ -100,23 +99,16 @@ onAuthStateChanged(auth,u=>user=u);
 
 function show(id){document.querySelectorAll(".screen").forEach(s=>s.classList.remove("active"));document.getElementById(id).classList.add("active")}
 
-// --- Start ---
-const enterBtn = document.getElementById("enterBtn");
-const nameInput = document.getElementById("nameInput");
+// --- START ---
+const enterBtn=document.getElementById("enterBtn");
+const nameInput=document.getElementById("nameInput");
+enterBtn.addEventListener("click",enterMenu);
+nameInput.addEventListener("keydown",e=>{if(e.key==="Enter") enterMenu();});
+function enterMenu(){name=nameInput.value||"Player";show("menu");loadServers();}
 
-function enterMenu(){
-  name = nameInput.value || "Player";
-  show("menu");
-  loadServers();
-}
-
-// ** Enter-Button + Enter-Taste **
-enterBtn.addEventListener("click", enterMenu);
-nameInput.addEventListener("keydown", e => {if(e.key==="Enter") enterMenu();});
-
-// --- Load Public Lobbies ---
+// --- LOAD PUBLIC LOBBIES ---
 function loadServers(){
-  const lobbiesRef = ref(db,"lobbies");
+  const lobbiesRef=ref(db,"lobbies");
   onValue(lobbiesRef,snap=>{
     let data=snap.val()||{};
     let list="";
@@ -129,16 +121,16 @@ function loadServers(){
   });
 }
 
-// --- Lobby / KI / Chat / Game ---
+// --- LOBBY ---
 function createLobby(pub){lobbyCode=Math.random().toString(36).slice(2,6).toUpperCase(); isHost=true; setupLobby(pub);}
 function joinPrivate(){let code=prompt("CODE?"); if(code) joinLobby(code.toUpperCase());}
 function joinLobby(code){lobbyCode=code; setupLobby(false);}
 function setupLobby(pub){
   show("lobby");
   document.getElementById("codeDisplay").innerText="CODE: "+lobbyCode;
-  gameRef = ref(db,"lobbies/"+lobbyCode);
+  gameRef=ref(db,"lobbies/"+lobbyCode);
   if(isHost) update(gameRef,{public:pub,hostUid:user.uid,players:{},chat:{}});
-  const pRef = push(ref(db,"lobbies/"+lobbyCode+"/players")); myKey=pRef.key;
+  const pRef=push(ref(db,"lobbies/"+lobbyCode+"/players")); myKey=pRef.key;
   set(pRef,{name,uid:user.uid,alive:true,isKI:false});
   pRef.onDisconnect().remove();
   onValue(gameRef,snap=>{
@@ -148,12 +140,11 @@ function setupLobby(pub){
     updateLobby();
     updateGame();
     updateChat(data.chat||{},true);
-    if(isHost){const humans=players.filter(p=>!p.isKI); if(humans.length===0){remove(gameRef); show("menu");}}
   });
 }
 function updateLobby(){document.getElementById("playerList").innerHTML=players.map(p=>`<div class="playerCard ${p.alive?'':'dead'}">${p.name}${p.isKI?' 🤖':''}</div>`).join(""); document.getElementById("startBtn").style.display=isHost?"inline":"none";}
 
-// --- Start Game ---
+// --- START GAME ---
 document.getElementById("startBtn").onclick=()=>{
   let mod=document.getElementById("modifier").value;
   let chambers=6, bullet=Math.floor(Math.random()*6);
@@ -163,55 +154,52 @@ document.getElementById("startBtn").onclick=()=>{
   show("game");
 };
 
-// --- Game Update mit Kreis ---
+// --- GAME UPDATE ---
 function updateGame(){
-  const circle = document.getElementById("playersCircle");
+  const circle=document.getElementById("playersCircle");
   circle.innerHTML="";
-  const n = players.length;
-  const radius = 150;
-  const center = radius;
+  const n=players.length,radius=150,center=radius;
   players.forEach((p,i)=>{
-    const angle = (2*Math.PI*i/n) - Math.PI/2;
-    const x = center + radius * Math.cos(angle);
-    const y = center + radius * Math.sin(angle);
-    const div = document.createElement("div");
-    div.className = "playerCard" + (p.alive?"":" dead");
-    div.style.position = "absolute";
-    div.style.left = x+"px";
-    div.style.top = y+"px";
-    div.style.transform = "translate(-50%, -50%)";
-    div.innerText = p.name;
+    const angle=(2*Math.PI*i/n)-Math.PI/2;
+    const x=center+radius*Math.cos(angle);
+    const y=center+radius*Math.sin(angle);
+    const div=document.createElement("div");
+    div.className="playerCard"+(p.alive?"":" dead");
+    div.style.position="absolute";
+    div.style.left=x+"px";
+    div.style.top=y+"px";
+    div.style.transform="translate(-50%,-50%)";
+    div.innerText=p.name;
     circle.appendChild(div);
   });
-  const arrow = document.getElementById("currentArrow");
+  const arrow=document.getElementById("currentArrow");
   if(gameState.turn!=null && players[gameState.turn]){
-    let angle = (360/n)*gameState.turn - 90;
+    let angle=(360/n)*gameState.turn-90;
     arrow.style.transform=`rotate(${angle}deg) translate(180px)`;
   }
   let current=players[gameState.turn]; if(current?.isKI && current.alive){setTimeout(()=>shoot(),1500);}
 }
 
-// --- Shoot / GiveUp / Spin ---
-function shoot(){let turnPlayer=players[gameState.turn]; if(!turnPlayer) return;if(turnPlayer.uid!==user.uid && !turnPlayer.isKI) return;
+// --- SHOOT/SPIN/GIVEUP ---
+function shoot(){let p=players[gameState.turn]; if(!p) return;if(p.uid!==user.uid && !p.isKI) return;
 let pos=(gameState.pos||0)+1, dead=false;
 if(Array.isArray(gameState.bullet)){if(gameState.bullet.includes(pos-1)) dead=true;} else if(pos-1===gameState.bullet) dead=true;
-if(dead){update(ref(db,"lobbies/"+lobbyCode+"/players/"+turnPlayer.key),{alive:false}); createBangParticles();}
+if(dead) update(ref(db,"lobbies/"+lobbyCode+"/players/"+p.key),{alive:false});
 nextTurn(pos); checkWinner();}
-function giveUp(){let turnPlayer=players[gameState.turn]; if(!turnPlayer) return; update(ref(db,"lobbies/"+lobbyCode+"/players/"+turnPlayer.key),{alive:false}); nextTurn(gameState.pos||0); checkWinner();}
+function giveUp(){let p=players[gameState.turn]; if(!p) return; update(ref(db,"lobbies/"+lobbyCode+"/players/"+p.key),{alive:false}); nextTurn(gameState.pos||0); checkWinner();}
 function spin(){update(ref(db,"lobbies/"+lobbyCode+"/gameState"),{pos:Math.floor(Math.random()*(gameState.chambers||6))});}
 function nextTurn(pos){update(ref(db,"lobbies/"+lobbyCode+"/gameState"),{pos:pos%(gameState.chambers||6)}); runTransaction(ref(db,"lobbies/"+lobbyCode+"/gameState/turn"),t=>{let n=(t+1)%players.length,s=0;while(!players[n].alive && s<players.length){n=(n+1)%players.length;s++} return n;});}
 
 // --- KI ---
 function addKI(){push(ref(db,"lobbies/"+lobbyCode+"/players"),{name:"KI-"+Math.floor(Math.random()*100),uid:"ki"+Date.now(),alive:true,isKI:true});}
 
-// --- Chat ---
+// --- CHAT ---
 function sendChat(){let txt=document.getElementById("chatInput").value;if(!txt)return;push(ref(db,"lobbies/"+lobbyCode+"/chat"),{name:name,text:txt});document.getElementById("chatInput").value="";}
 function sendChatGame(){let txt=document.getElementById("chatInputGame").value;if(!txt)return;push(ref(db,"lobbies/"+lobbyCode+"/chat"),{name:name,text:txt});document.getElementById("chatInputGame").value="";}
 function updateChat(chat,lobby=false){let box=lobby?document.getElementById("chatBox"):document.getElementById("chatBoxGame");box.innerHTML=Object.values(chat).map(m=>`<div><b>${m.name}:</b> ${m.text}</div>`).join("");}
 
-// --- Leave / Partikel / Winner ---
+// --- LEAVE / WINNER ---
 function leaveLobby(){if(myKey) remove(ref(db,"lobbies/"+lobbyCode+"/players/"+myKey)); show("menu"); isHost=false;}
-function createBangParticles(){const c=document.getElementById("particles");for(let i=0;i<50;i++){const p=document.createElement('div');p.style.cssText=`position:absolute;width:8px;height:8px;border-radius:50%;background:#ff0044;left:50%;top:50%;transform:translate(-50%,-50%);animation:fly ${0.6+Math.random()}s forwards`;c.appendChild(p);setTimeout(()=>p.remove(),1800);}}
 function checkWinner(){let alive=players.filter(p=>p.alive); if(alive.length===1){let txt=document.getElementById("winnerText"); txt.innerText=`WINNER: ${alive[0].name}`; txt.style.display="block"; setTimeout(()=>location.reload(),4000);}}
 </script>
 </body>
