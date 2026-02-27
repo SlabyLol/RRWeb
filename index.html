@@ -1,70 +1,69 @@
 <!DOCTYPE html>
-<html>
+<html lang="de">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>NIGHT CITY RR</title>
 
 <style>
-body{margin:0;background:#0a0015;color:white;font-family:Courier New,monospace;overflow:hidden}
-.screen{display:none;position:absolute;inset:0;padding:20px}
-.active{display:block}
-h1{text-align:center;font-size:60px;letter-spacing:8px;animation:glitch 3s infinite}
-@keyframes glitch{
-0%{text-shadow:3px 0 #ff00ff,-3px 0 #00ffff}
-50%{text-shadow:-3px 0 #ff00ff,3px 0 #00ffff}
-100%{text-shadow:3px 0 #ff00ff,-3px 0 #00ffff}
+:root {
+  --pink: #ff0044;
+  --cyan: #00ffff;
+  --dark: #0a0015;
 }
-.layout{display:flex;height:80%}
-.left{flex:1}
-.right{width:250px;border-left:2px solid #00ffff;padding-left:10px}
-button{padding:8px 16px;background:transparent;border:2px solid #ff00ff;color:#ff00ff;margin:5px;cursor:pointer}
-button:hover{background:#ff00ff;color:black}
-input{padding:6px;background:black;color:#00ffff;border:1px solid #00ffff;margin:5px}
-.player{border:1px solid #ff00ff;padding:5px;margin:5px}
-.dead{opacity:0.3;text-decoration:line-through}
-#chatBox{height:150px;overflow-y:auto;border:1px solid #00ffff;margin-top:10px}
+body {margin:0; height:100vh; background:var(--dark); color:#e8f0ff; font-family:'Courier New',monospace; overflow:hidden;}
+.screen { position:absolute; inset:0; display:none; flex-direction:column; align-items:center; justify-content:center; z-index:10; padding:20px; }
+.screen.active { display:flex; }
+h1.title { font-size:clamp(5rem, 15vw, 12rem); font-weight:900; text-transform:uppercase; letter-spacing:0.5em; color:#fff; text-shadow:0 0 25px var(--cyan), 0 0 70px var(--pink); position:relative; animation:glitch 5s infinite; }
+@keyframes glitch {0%,100%{transform:translate(0)}3%,7%,11%{transform:translate(6px,-5px)}}
+button, input { padding:12px 20px; margin:5px; font-size:1.5rem; color:var(--pink); background:transparent; border:2px solid var(--pink); cursor:pointer; }
+button:hover { background:var(--pink); color:#000; }
+.layout { display:flex; width:100%; max-width:1200px; margin-top:20px; }
+.left { flex:1; }
+.right { width:250px; border-left:2px solid var(--cyan); padding-left:10px; }
+.player { border:1px solid var(--pink); margin:5px; padding:5px; }
+.dead { opacity:0.3; text-decoration:line-through; }
+#chatBox { height:150px; overflow-y:auto; border:1px solid var(--cyan); margin-top:10px; padding:5px; background:#0a0015; }
 </style>
 </head>
 <body>
 
-<div id="start" class="screen active">
-<h1>NIGHT CITY</h1>
-<input id="nameInput" placeholder="Name">
-<button id="enterBtn">ENTER</button>
+<!-- START SCREEN -->
+<div id="startScreen" class="screen active">
+  <h1 class="title">NIGHT CITY</h1>
+  <input id="nameInput" placeholder="DEIN NAME">
+  <button id="enterBtn">ENTER</button>
 </div>
 
-<div id="menu" class="screen">
-<h1>LOBBIES</h1>
-<button id="createPublic">CREATE PUBLIC</button>
-<br>
-<input id="privateCodeInput" placeholder="Private Code">
-<button id="createPrivate">CREATE PRIVATE</button>
-<br>
-<input id="joinLobbyInput" placeholder="Lobby ID">
-<input id="joinCodeInput" placeholder="Code (falls privat)">
-<button id="joinBtn">JOIN</button>
-<h3>Public Servers</h3>
-<div id="serverList"></div>
+<!-- MENU -->
+<div id="menuScreen" class="screen">
+  <h1 class="title">LOBBIES</h1>
+  <button id="createPublicBtn">CREATE PUBLIC</button>
+  <input id="privateCodeInput" placeholder="Private Code">
+  <button id="createPrivateBtn">CREATE PRIVATE</button>
+  <input id="joinLobbyInput" placeholder="Lobby ID">
+  <input id="joinCodeInput" placeholder="Code falls privat">
+  <button id="joinBtn">JOIN</button>
+  <h3>Public Servers</h3>
+  <div id="serverList"></div>
 </div>
 
-<div id="lobby" class="screen">
-<h1 id="lobbyHeader"></h1>
-
-<div class="layout">
-<div class="left">
-<button id="leaveBtn">LEAVE</button>
-<button id="addKiBtn">ADD KI</button>
-
-<div id="chatBox"></div>
-<input id="chatInput">
-<button id="sendBtn">SEND</button>
-</div>
-
-<div class="right">
-<h3>PLAYERS</h3>
-<div id="playerList"></div>
-</div>
-</div>
+<!-- LOBBY -->
+<div id="lobbyScreen" class="screen">
+  <h1 class="title" id="lobbyHeader">LOBBY</h1>
+  <div class="layout">
+    <div class="left">
+      <button id="leaveBtn">LEAVE</button>
+      <button id="addKiBtn">ADD KI</button>
+      <div id="chatBox"></div>
+      <input id="chatInput" placeholder="Nachricht">
+      <button id="sendBtn">SEND</button>
+    </div>
+    <div class="right">
+      <h3>PLAYERS</h3>
+      <div id="playerList"></div>
+    </div>
+  </div>
 </div>
 
 <script type="module">
@@ -72,170 +71,166 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebas
 import { getDatabase, ref, set, push, onValue, get, remove } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-database.js";
 import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-auth.js";
 
-const config={
-apiKey:"AIzaSy...",
-authDomain:"rrweb-dc73f.firebaseapp.com",
-databaseURL:"https://rrweb-dc73f-default-rtdb.europe-west1.firebasedatabase.app",
-projectId:"rrweb-dc73f"
+// === FIREBASE CONFIG HIER DEIN KEY EINFÜGEN ===
+const firebaseConfig = {
+  apiKey: "AIzaSyBa5w0hQ1v7Nowk-BvDgkGeNRNf1WJtDgw",
+  authDomain: "rrweb-dc73f.firebaseapp.com",
+  databaseURL: "https://rrweb-dc73f-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "rrweb-dc73f",
+  storageBucket: "rrweb-dc73f.appspot.com",
+  messagingSenderId: "247426843219",
+  appId: "1:247426843219:web:c466e97fd59ee160c9bca6"
 };
 
-const app=initializeApp(config);
-const db=getDatabase(app);
-const auth=getAuth(app);
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+const auth = getAuth(app);
 
-let user,name,lobbyId,myKey,isHost=false;
+let userReady = false;
+let currentUser = null;
+let lobbyId = null;
+let myKey = null;
+let isHost = false;
 
-signInAnonymously(auth);
-onAuthStateChanged(auth,u=>user=u);
+const startScreen = document.getElementById('startScreen');
+const menuScreen = document.getElementById('menuScreen');
+const lobbyScreen = document.getElementById('lobbyScreen');
+const nameInput = document.getElementById('nameInput');
+const enterBtn = document.getElementById('enterBtn');
+const createPublicBtn = document.getElementById('createPublicBtn');
+const createPrivateBtn = document.getElementById('createPrivateBtn');
+const privateCodeInput = document.getElementById('privateCodeInput');
+const joinLobbyInput = document.getElementById('joinLobbyInput');
+const joinCodeInput = document.getElementById('joinCodeInput');
+const joinBtn = document.getElementById('joinBtn');
+const serverList = document.getElementById('serverList');
+const lobbyHeader = document.getElementById('lobbyHeader');
+const leaveBtn = document.getElementById('leaveBtn');
+const addKiBtn = document.getElementById('addKiBtn');
+const playerList = document.getElementById('playerList');
+const chatBox = document.getElementById('chatBox');
+const chatInput = document.getElementById('chatInput');
+const sendBtn = document.getElementById('sendBtn');
 
-function show(id){
-document.querySelectorAll(".screen").forEach(s=>s.classList.remove("active"));
-document.getElementById(id).classList.add("active");
-}
+let playerName = "";
 
+// --- AUTH ---
+signInAnonymously(auth).catch(err=>console.error("Auth error:",err));
+onAuthStateChanged(auth,u=>{
+  if(u){ currentUser=u; userReady=true; console.log("Auth ready", u.uid);}
+});
+
+// --- SCREEN SWITCH ---
+function showScreen(screen){ [startScreen,menuScreen,lobbyScreen].forEach(s=>s.classList.remove('active')); screen.classList.add('active'); }
+
+// --- ENTER NAME ---
 enterBtn.onclick=()=>{
-name=nameInput.value||"Player";
-show("menu");
-loadPublicServers();
+  playerName=nameInput.value||"Player";
+  showScreen(menuScreen);
+  loadPublicServers();
 };
 
-function generateID(){
-return Math.random().toString(36).substring(2,6).toUpperCase();
-}
+// --- GENERATE LOBBY ID ---
+function generateLobbyID(){ return Math.random().toString(36).substring(2,6).toUpperCase(); }
 
+// --- CREATE LOBBY ---
 async function createLobby(isPublic, code=null){
-lobbyId=generateID();
-isHost=true;
-
-await set(ref(db,"lobbies/"+lobbyId),{
-public:isPublic,
-privateCode:code||null,
-hostUid:user.uid
-});
-
-addPlayer();
-listenLobby();
-show("lobby");
+  if(!userReady){ alert("Auth noch nicht fertig"); return; }
+  lobbyId = generateLobbyID();
+  isHost=true;
+  try{
+    await set(ref(db,"lobbies/"+lobbyId),{
+      public:isPublic,
+      privateCode: code||null,
+      hostUid: currentUser.uid,
+      createdAt:Date.now()
+    });
+    addMeToLobby();
+    listenLobby();
+    showScreen(lobbyScreen);
+  }catch(e){ alert("DB ERROR: "+e.message);}
 }
-
-createPublic.onclick=()=>createLobby(true);
-
-createPrivate.onclick=()=>{
-const code=privateCodeInput.value.trim();
-if(!code){alert("Code fehlt");return;}
-createLobby(false,code);
+createPublicBtn.onclick=()=>createLobby(true);
+createPrivateBtn.onclick=()=>{ 
+  const code = privateCodeInput.value.trim();
+  if(!code){ alert("Code fehlt"); return;}
+  createLobby(false, code);
 };
 
+// --- JOIN LOBBY ---
 joinBtn.onclick=async()=>{
-const id=joinLobbyInput.value.toUpperCase();
-if(!id)return;
-
-const snap=await get(ref(db,"lobbies/"+id));
-if(!snap.exists()){alert("Lobby nicht gefunden");return;}
-
-const data=snap.val();
-
-if(!data.public){
-if(joinCodeInput.value!==data.privateCode){
-alert("Falscher Code");
-return;
-}
-}
-
-lobbyId=id;
-isHost=(data.hostUid===user.uid);
-
-addPlayer();
-listenLobby();
-show("lobby");
+  const id = joinLobbyInput.value.toUpperCase();
+  if(!id) return;
+  const snap = await get(ref(db,"lobbies/"+id));
+  if(!snap.exists()){ alert("Lobby nicht gefunden"); return;}
+  const data = snap.val();
+  if(!data.public && joinCodeInput.value!==data.privateCode){ alert("Falscher Code"); return;}
+  lobbyId=id;
+  isHost=(data.hostUid===currentUser.uid);
+  addMeToLobby();
+  listenLobby();
+  showScreen(lobbyScreen);
 };
 
-function addPlayer(){
-const pRef=push(ref(db,"lobbies/"+lobbyId+"/players"));
-myKey=pRef.key;
-set(pRef,{
-name:name,
-uid:user.uid,
-isKI:false
-});
-pRef.onDisconnect().remove();
+// --- ADD PLAYER ---
+function addMeToLobby(){
+  const pRef = push(ref(db,"lobbies/"+lobbyId+"/players"));
+  myKey=pRef.key;
+  set(pRef,{ name:playerName, uid:currentUser.uid, isKI:false });
+  pRef.onDisconnect().remove();
 }
 
+// --- LISTEN LOBBY ---
 function listenLobby(){
-onValue(ref(db,"lobbies/"+lobbyId),snap=>{
-const data=snap.val();
-if(!data){show("menu");return;}
-
-lobbyHeader.innerText="Lobby: "+lobbyId+(data.public?" (Public)":" (Private)");
-
-renderPlayers(data.players||{});
-renderChat(data.chat||{});
-});
+  onValue(ref(db,"lobbies/"+lobbyId),snap=>{
+    const data = snap.val();
+    if(!data){ showScreen(menuScreen); return; }
+    lobbyHeader.innerText="Lobby "+lobbyId + (data.public?" (Public)":" (Private)");
+    renderPlayers(data.players||{});
+    renderChat(data.chat||{});
+  });
 }
 
+// --- RENDER PLAYERS ---
 function renderPlayers(players){
-let html="";
-let humanCount=0;
-
-for(let key in players){
-const p=players[key];
-if(!p.isKI) humanCount++;
-html+=`<div class="player">${p.name}${p.isKI?" 🤖":""}</div>`;
+  let html="", humanCount=0;
+  for(let k in players){
+    const p=players[k];
+    if(!p.isKI) humanCount++;
+    html+=`<div class="player">${p.name}${p.isKI?" 🤖":""}</div>`;
+  }
+  playerList.innerHTML=html;
+  if(isHost && humanCount===0) remove(ref(db,"lobbies/"+lobbyId));
 }
 
-playerList.innerHTML=html;
+// --- ADD KI ---
+addKiBtn.onclick=()=>push(ref(db,"lobbies/"+lobbyId+"/players"),{ name:"KI-"+Math.floor(Math.random()*100), uid:"KI"+Date.now(), isKI:true });
 
-if(isHost && humanCount===0){
-remove(ref(db,"lobbies/"+lobbyId));
-}
-}
+// --- LEAVE ---
+leaveBtn.onclick=()=>{ if(myKey) remove(ref(db,"lobbies/"+lobbyId+"/players/"+myKey)); showScreen(menuScreen); loadPublicServers(); };
 
-addKiBtn.onclick=()=>{
-push(ref(db,"lobbies/"+lobbyId+"/players"),{
-name:"KI-"+Math.floor(Math.random()*100),
-uid:"KI"+Date.now(),
-isKI:true
-});
-};
-
-leaveBtn.onclick=()=>{
-if(myKey){
-remove(ref(db,"lobbies/"+lobbyId+"/players/"+myKey));
-}
-};
-
+// --- CHAT ---
 sendBtn.onclick=()=>{
-const text=chatInput.value;
-if(!text)return;
-push(ref(db,"lobbies/"+lobbyId+"/chat"),{
-name:name,
-text:text
-});
-chatInput.value="";
+  const text=chatInput.value; if(!text) return;
+  push(ref(db,"lobbies/"+lobbyId+"/chat"),{ name:playerName, text });
+  chatInput.value="";
 };
-
 function renderChat(chat){
-let html="";
-for(let key in chat){
-html+=`<div><b>${chat[key].name}:</b> ${chat[key].text}</div>`;
-}
-chatBox.innerHTML=html;
+  let html="";
+  for(let k in chat) html+=`<div><b>${chat[k].name}:</b> ${chat[k].text}</div>`;
+  chatBox.innerHTML=html;
 }
 
+// --- LOAD PUBLIC SERVERS ---
 function loadPublicServers(){
-onValue(ref(db,"lobbies"),snap=>{
-const data=snap.val();
-let html="";
-if(data){
-for(let id in data){
-if(data[id].public){
-html+=`<div>${id}</div>`;
+  onValue(ref(db,"lobbies"),snap=>{
+    const data=snap.val();
+    let html="";
+    if(data) for(let id in data) if(data[id].public) html+=`<div>${id}</div>`;
+    serverList.innerHTML=html;
+  });
 }
-}
-}
-serverList.innerHTML=html;
-});
-}
+
 </script>
 </body>
 </html>
