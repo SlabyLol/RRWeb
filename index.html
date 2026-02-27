@@ -2,12 +2,17 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>RR Test</title>
+<title>RR Multiplayer</title>
 <style>
-body{background:#111;color:white;font-family:monospace;text-align:center}
+body{margin:0;background:#111;color:white;font-family:monospace;text-align:center}
 button{padding:10px;margin:5px}
-#screen{margin-top:30px}
+input{padding:5px;margin:5px}
+.screen{display:none;margin-top:30px}
+.active{display:block}
 .player{border:1px solid #0ff;margin:5px;padding:5px}
+.dead{opacity:0.4;text-decoration:line-through}
+#playersCircle{position:relative;width:400px;height:400px;margin:20px auto}
+.card{position:absolute;border:1px solid #f0f;padding:5px}
 #chatBox{height:120px;overflow-y:auto;border:1px solid #0ff;margin:10px}
 </style>
 </head>
@@ -15,144 +20,208 @@ button{padding:10px;margin:5px}
 
 <h1>Russian Roulette</h1>
 
-<div id="start">
+<div id="start" class="screen active">
 <input id="nameInput" placeholder="Name">
 <button id="enterBtn">Enter</button>
 </div>
 
-<div id="menu" style="display:none">
-<button id="createBtn">Create Public Lobby</button>
+<div id="menu" class="screen">
+<button id="createPublic">Create Public</button>
+<button id="createPrivate">Create Private</button>
 <input id="joinInput" placeholder="Code">
-<button id="joinBtn">Join Lobby</button>
+<button id="joinBtn">Join</button>
 <div id="serverList"></div>
 </div>
 
-<div id="lobby" style="display:none">
+<div id="lobby" class="screen">
 <h2 id="lobbyCode"></h2>
 <div id="players"></div>
-<div id="chatBox"></div>
-<input id="chatInput" placeholder="Chat">
-<button id="sendBtn">Send</button>
+<button id="addKiBtn">Add KI</button>
 <button id="leaveBtn">Leave</button>
+<div id="chatBox"></div>
+<input id="chatInput">
+<button id="sendBtn">Send</button>
+</div>
+
+<div id="game" class="screen">
+<div id="playersCircle"></div>
+<button id="shootBtn">Shoot</button>
+<button id="giveUpBtn">Give Up</button>
+<button id="spinBtn">Spin</button>
 </div>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
-import { getDatabase, ref, set, push, onValue, remove } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-database.js";
+import { getDatabase, ref, set, push, onValue, remove, update } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-database.js";
 import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-auth.js";
 
-const firebaseConfig = {
-  apiKey:"AIzaSyBa5w0hQ1v7Nowk-BvDgkGeNRNf1WJtDgw",
-  authDomain:"rrweb-dc73f.firebaseapp.com",
-  databaseURL:"https://rrweb-dc73f-default-rtdb.europe-west1.firebasedatabase.app",
-  projectId:"rrweb-dc73f"
+const config={
+apiKey:"AIzaSyBa5w0hQ1v7Nowk-BvDgkGeNRNf1WJtDgw",
+authDomain:"rrweb-dc73f.firebaseapp.com",
+databaseURL:"https://rrweb-dc73f-default-rtdb.europe-west1.firebasedatabase.app",
+projectId:"rrweb-dc73f"
 };
 
-const app = initializeApp(firebaseConfig);
-const db = getDatabase(app);
-const auth = getAuth(app);
+const app=initializeApp(config);
+const db=getDatabase(app);
+const auth=getAuth(app);
 
-let user, name, lobbyCode, playerKey;
+let user,name,lobbyCode,myKey,isHost=false,players=[];
 
 signInAnonymously(auth);
-
-onAuthStateChanged(auth, u=>{
-  user = u;
-  console.log("Signed in:", u.uid);
-});
+onAuthStateChanged(auth,u=>user=u);
 
 function show(id){
-  document.getElementById("start").style.display="none";
-  document.getElementById("menu").style.display="none";
-  document.getElementById("lobby").style.display="none";
-  document.getElementById(id).style.display="block";
+document.querySelectorAll(".screen").forEach(s=>s.classList.remove("active"));
+document.getElementById(id).classList.add("active");
 }
 
 document.getElementById("enterBtn").onclick=()=>{
-  name = document.getElementById("nameInput").value || "Player";
-  show("menu");
-  loadServers();
-};
-
-document.getElementById("createBtn").onclick=()=>{
-  lobbyCode = Math.random().toString(36).substring(2,6).toUpperCase();
-  const lobbyRef = ref(db,"lobbies/"+lobbyCode);
-  set(lobbyRef,{
-    public:true
-  });
-  joinLobby(lobbyCode);
-};
-
-document.getElementById("joinBtn").onclick=()=>{
-  const code = document.getElementById("joinInput").value.toUpperCase();
-  if(code) joinLobby(code);
+name=document.getElementById("nameInput").value||"Player";
+show("menu");
+loadServers();
 };
 
 function loadServers(){
-  onValue(ref(db,"lobbies"),snap=>{
-    const data=snap.val();
-    let html="";
-    if(data){
-      Object.keys(data).forEach(code=>{
-        if(data[code].public){
-          html += `<div>${code}</div>`;
-        }
-      });
-    }
-    document.getElementById("serverList").innerHTML=html;
-  });
+onValue(ref(db,"lobbies"),snap=>{
+const data=snap.val();
+let html="";
+if(data){
+Object.keys(data).forEach(code=>{
+if(data[code].public){
+html+=`<div>${code}</div>`;
 }
+});
+}
+document.getElementById("serverList").innerHTML=html;
+});
+}
+
+document.getElementById("createPublic").onclick=()=>createLobby(true);
+document.getElementById("createPrivate").onclick=()=>createLobby(false);
+
+function createLobby(pub){
+lobbyCode=Math.random().toString(36).substring(2,6).toUpperCase();
+isHost=true;
+set(ref(db,"lobbies/"+lobbyCode),{public:pub});
+joinLobby(lobbyCode);
+}
+
+document.getElementById("joinBtn").onclick=()=>{
+const code=document.getElementById("joinInput").value.toUpperCase();
+if(code) joinLobby(code);
+};
 
 function joinLobby(code){
-  lobbyCode = code;
-  show("lobby");
-  document.getElementById("lobbyCode").innerText="Code: "+code;
+lobbyCode=code;
+show("lobby");
+document.getElementById("lobbyCode").innerText="Code: "+code;
 
-  const playerRef = push(ref(db,"lobbies/"+code+"/players"));
-  playerKey = playerRef.key;
-  set(playerRef,{
-    name:name,
-    uid:user.uid
-  });
+const pRef=push(ref(db,"lobbies/"+code+"/players"));
+myKey=pRef.key;
 
-  onValue(ref(db,"lobbies/"+code+"/players"),snap=>{
-    const data=snap.val();
-    let html="";
-    if(data){
-      Object.values(data).forEach(p=>{
-        html+=`<div class="player">${p.name}</div>`;
-      });
-    }
-    document.getElementById("players").innerHTML=html;
-  });
+set(pRef,{
+name:name,
+uid:user.uid,
+alive:true,
+isKI:false
+});
 
-  onValue(ref(db,"lobbies/"+code+"/chat"),snap=>{
-    const data=snap.val();
-    let html="";
-    if(data){
-      Object.values(data).forEach(m=>{
-        html+=`<div><b>${m.name}:</b> ${m.text}</div>`;
-      });
-    }
-    document.getElementById("chatBox").innerHTML=html;
-  });
+pRef.onDisconnect().remove();
+
+onValue(ref(db,"lobbies/"+code),snap=>{
+const data=snap.val();
+if(!data){
+show("menu");
+return;
 }
 
+players=Object.entries(data.players||{}).map(([k,v])=>({key:k,...v}));
+
+renderPlayers();
+renderCircle();
+
+const humans=players.filter(p=>!p.isKI);
+if(isHost && humans.length===0){
+remove(ref(db,"lobbies/"+lobbyCode));
+show("menu");
+}
+
+if(data.chat){
+let html="";
+Object.values(data.chat).forEach(m=>{
+html+=`<div><b>${m.name}:</b> ${m.text}</div>`;
+});
+document.getElementById("chatBox").innerHTML=html;
+}
+});
+}
+
+function renderPlayers(){
+let html="";
+players.forEach(p=>{
+html+=`<div class="player ${p.alive?'':'dead'}">${p.name}${p.isKI?' 🤖':''}</div>`;
+});
+document.getElementById("players").innerHTML=html;
+}
+
+function renderCircle(){
+const c=document.getElementById("playersCircle");
+c.innerHTML="";
+let n=players.length;
+let r=150;
+let center=200;
+players.forEach((p,i)=>{
+let angle=(2*Math.PI*i/n);
+let x=center+r*Math.cos(angle);
+let y=center+r*Math.sin(angle);
+let div=document.createElement("div");
+div.className="card";
+div.style.left=x+"px";
+div.style.top=y+"px";
+div.innerText=p.name;
+c.appendChild(div);
+});
+}
+
+document.getElementById("addKiBtn").onclick=()=>{
+push(ref(db,"lobbies/"+lobbyCode+"/players"),{
+name:"KI-"+Math.floor(Math.random()*100),
+uid:"ki"+Date.now(),
+alive:true,
+isKI:true
+});
+};
+
 document.getElementById("sendBtn").onclick=()=>{
-  const text=document.getElementById("chatInput").value;
-  if(!text) return;
-  push(ref(db,"lobbies/"+lobbyCode+"/chat"),{
-    name:name,
-    text:text
-  });
-  document.getElementById("chatInput").value="";
+let text=document.getElementById("chatInput").value;
+if(!text) return;
+push(ref(db,"lobbies/"+lobbyCode+"/chat"),{
+name:name,
+text:text
+});
+document.getElementById("chatInput").value="";
 };
 
 document.getElementById("leaveBtn").onclick=()=>{
-  remove(ref(db,"lobbies/"+lobbyCode+"/players/"+playerKey));
-  show("menu");
+remove(ref(db,"lobbies/"+lobbyCode+"/players/"+myKey));
 };
-</script>
 
+document.getElementById("shootBtn").onclick=()=>{
+let alivePlayers=players.filter(p=>p.alive);
+if(alivePlayers.length<=1)return;
+let target=alivePlayers[Math.floor(Math.random()*alivePlayers.length)];
+update(ref(db,"lobbies/"+lobbyCode+"/players/"+target.key),{alive:false});
+};
+
+document.getElementById("giveUpBtn").onclick=()=>{
+update(ref(db,"lobbies/"+lobbyCode+"/players/"+myKey),{alive:false});
+};
+
+document.getElementById("spinBtn").onclick=()=>{
+alert("Spin animation later 😈");
+};
+
+</script>
 </body>
 </html>
