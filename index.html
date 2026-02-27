@@ -1,85 +1,44 @@
 <!DOCTYPE html>
-<html lang="de">
+<html>
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>RUSSIAN ROULETTE × NIGHT CITY</title>
+<title>RR Test</title>
 <style>
-body{margin:0;background:#0a0015;color:white;font-family:Courier New,monospace;overflow:hidden;}
-.screen{display:none;position:absolute;inset:0;flex-direction:column;align-items:center;justify-content:center;padding:20px;}
-.active{display:flex;}
-.title{font-size:6vw;letter-spacing:8px;text-shadow:0 0 20px #00ffff,0 0 50px #ff0044;animation:glitch 3s infinite;}
-@keyframes glitch{0%{transform:translate(0)}10%{transform:translate(3px,-3px)}20%{transform:translate(-3px,3px)}30%{transform:translate(0)}}
-button{padding:12px 25px;margin:10px;background:transparent;border:2px solid #ff0044;color:#ff0044;cursor:pointer;}
-button:hover{background:#ff0044;color:black;}
-.playerCard{padding:8px 12px;margin:5px;border:2px solid #c300ff;border-radius:6px;text-align:center;display:inline-block;min-width:80px;}
-.dead{opacity:0.4;text-decoration:line-through;}
-#playersCircle{position:relative;width:400px;height:400px;margin:20px;}
-.currentArrow{position:absolute;width:0;height:0;border-left:15px solid transparent;border-right:15px solid transparent;border-bottom:25px solid #ffff66;transform-origin:center bottom;transition:transform 0.5s;}
-#chatBox,#chatBoxGame{width:300px;height:150px;overflow-y:auto;border:2px solid #00ffff;margin-top:10px;padding:5px;}
-#chatInput,#chatInputGame{width:240px;padding:5px;margin-top:5px;}
-#particles{position:fixed;inset:0;pointer-events:none;z-index:5;}
-#winnerText{position:absolute;top:40%;font-size:4rem;color:#ffff66;text-shadow:0 0 20px #ffff66;display:none;animation:pulse 1s infinite alternate;}
-@keyframes pulse{0%{transform:scale(1)}100%{transform:scale(1.2)}}
+body{background:#111;color:white;font-family:monospace;text-align:center}
+button{padding:10px;margin:5px}
+#screen{margin-top:30px}
+.player{border:1px solid #0ff;margin:5px;padding:5px}
+#chatBox{height:120px;overflow-y:auto;border:1px solid #0ff;margin:10px}
 </style>
 </head>
 <body>
 
-<!-- START -->
-<div id="start" class="screen active">
-<h1 class="title">NIGHT CITY</h1>
-<input id="nameInput" placeholder="NAME">
-<button id="enterBtn">ENTER</button>
+<h1>Russian Roulette</h1>
+
+<div id="start">
+<input id="nameInput" placeholder="Name">
+<button id="enterBtn">Enter</button>
 </div>
 
-<!-- MENU -->
-<div id="menu" class="screen">
-<h2>SERVER LIST</h2>
+<div id="menu" style="display:none">
+<button id="createBtn">Create Public Lobby</button>
+<input id="joinInput" placeholder="Code">
+<button id="joinBtn">Join Lobby</button>
 <div id="serverList"></div>
-<button onclick="createLobby(true)">CREATE PUBLIC</button>
-<button onclick="createLobby(false)">CREATE PRIVATE</button>
-<button onclick="joinPrivate()">JOIN PRIVATE</button>
 </div>
 
-<!-- LOBBY -->
-<div id="lobby" class="screen">
-<h1 class="title">LOBBY</h1>
-<div id="codeDisplay"></div>
-<div id="playerList"></div>
-<select id="modifier">
-<option value="6">6 CHAMBERS</option>
-<option value="8">8 CHAMBERS</option>
-<option value="double">DOUBLE BULLET</option>
-</select>
-<button id="startBtn">START GAME</button>
-<button onclick="addKI()">+ KI</button>
-<button onclick="leaveLobby()">LEAVE</button>
+<div id="lobby" style="display:none">
+<h2 id="lobbyCode"></h2>
+<div id="players"></div>
 <div id="chatBox"></div>
-<input id="chatInput" placeholder="CHAT...">
-<button onclick="sendChat()">SEND</button>
-</div>
-
-<!-- GAME -->
-<div id="game" class="screen">
-<h1 class="title">GAME</h1>
-<div id="playersCircle"></div>
-<div class="currentArrow" id="currentArrow"></div>
-<div id="gameButtons">
-<button onclick="shoot()">SHOOT</button>
-<button onclick="spin()">SPIN</button>
-<button onclick="giveUp()">GIVE UP</button>
-<button onclick="leaveLobby()">LEAVE</button>
-</div>
-<div id="chatBoxGame"></div>
-<input id="chatInputGame" placeholder="CHAT...">
-<button onclick="sendChatGame()">SEND</button>
-<div id="winnerText"></div>
-<div id="particles"></div>
+<input id="chatInput" placeholder="Chat">
+<button id="sendBtn">Send</button>
+<button id="leaveBtn">Leave</button>
 </div>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
-import { getDatabase, ref, onValue, push, set, update, remove, runTransaction } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-database.js";
+import { getDatabase, ref, set, push, onValue, remove } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-database.js";
 import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-auth.js";
 
 const firebaseConfig = {
@@ -88,119 +47,112 @@ const firebaseConfig = {
   databaseURL:"https://rrweb-dc73f-default-rtdb.europe-west1.firebasedatabase.app",
   projectId:"rrweb-dc73f"
 };
+
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
-const auth = getAuth();
+const auth = getAuth(app);
 
-let user,name,lobbyCode,myKey,isHost=false,gameRef,players=[],gameState={};
+let user, name, lobbyCode, playerKey;
 
 signInAnonymously(auth);
-onAuthStateChanged(auth,u=>user=u);
 
-function show(id){document.querySelectorAll(".screen").forEach(s=>s.classList.remove("active"));document.getElementById(id).classList.add("active")}
+onAuthStateChanged(auth, u=>{
+  user = u;
+  console.log("Signed in:", u.uid);
+});
 
-// --- START ---
-const enterBtn=document.getElementById("enterBtn");
-const nameInput=document.getElementById("nameInput");
-enterBtn.addEventListener("click",enterMenu);
-nameInput.addEventListener("keydown",e=>{if(e.key==="Enter") enterMenu();});
-function enterMenu(){name=nameInput.value||"Player";show("menu");loadServers();}
-
-// --- LOAD PUBLIC LOBBIES ---
-function loadServers(){
-  const lobbiesRef=ref(db,"lobbies");
-  onValue(lobbiesRef,snap=>{
-    let data=snap.val()||{};
-    let list="";
-    for(let code in data){
-      if(data[code].public && data[code].players && Object.keys(data[code].players).length>0){
-        list+=`<div>${code} <button onclick="joinLobby('${code}')">JOIN</button></div>`;
-      }
-    }
-    document.getElementById("serverList").innerHTML=list;
-  });
+function show(id){
+  document.getElementById("start").style.display="none";
+  document.getElementById("menu").style.display="none";
+  document.getElementById("lobby").style.display="none";
+  document.getElementById(id).style.display="block";
 }
 
-// --- LOBBY ---
-function createLobby(pub){lobbyCode=Math.random().toString(36).slice(2,6).toUpperCase(); isHost=true; setupLobby(pub);}
-function joinPrivate(){let code=prompt("CODE?"); if(code) joinLobby(code.toUpperCase());}
-function joinLobby(code){lobbyCode=code; setupLobby(false);}
-function setupLobby(pub){
-  show("lobby");
-  document.getElementById("codeDisplay").innerText="CODE: "+lobbyCode;
-  gameRef=ref(db,"lobbies/"+lobbyCode);
-  if(isHost) update(gameRef,{public:pub,hostUid:user.uid,players:{},chat:{}});
-  const pRef=push(ref(db,"lobbies/"+lobbyCode+"/players")); myKey=pRef.key;
-  set(pRef,{name,uid:user.uid,alive:true,isKI:false});
-  pRef.onDisconnect().remove();
-  onValue(gameRef,snap=>{
-    const data=snap.val(); if(!data) return;
-    players=Object.entries(data.players||{}).map(([k,v])=>({key:k,...v}));
-    gameState=data.gameState||{};
-    updateLobby();
-    updateGame();
-    updateChat(data.chat||{},true);
-  });
-}
-function updateLobby(){document.getElementById("playerList").innerHTML=players.map(p=>`<div class="playerCard ${p.alive?'':'dead'}">${p.name}${p.isKI?' 🤖':''}</div>`).join(""); document.getElementById("startBtn").style.display=isHost?"inline":"none";}
-
-// --- START GAME ---
-document.getElementById("startBtn").onclick=()=>{
-  let mod=document.getElementById("modifier").value;
-  let chambers=6, bullet=Math.floor(Math.random()*6);
-  if(mod==="8"){chambers=8; bullet=Math.floor(Math.random()*8);}
-  if(mod==="double"){bullet=[Math.floor(Math.random()*6),Math.floor(Math.random()*6)];}
-  update(ref(db,"lobbies/"+lobbyCode+"/gameState"),{turn:0,chambers,bullet,pos:0});
-  show("game");
+document.getElementById("enterBtn").onclick=()=>{
+  name = document.getElementById("nameInput").value || "Player";
+  show("menu");
+  loadServers();
 };
 
-// --- GAME UPDATE ---
-function updateGame(){
-  const circle=document.getElementById("playersCircle");
-  circle.innerHTML="";
-  const n=players.length,radius=150,center=radius;
-  players.forEach((p,i)=>{
-    const angle=(2*Math.PI*i/n)-Math.PI/2;
-    const x=center+radius*Math.cos(angle);
-    const y=center+radius*Math.sin(angle);
-    const div=document.createElement("div");
-    div.className="playerCard"+(p.alive?"":" dead");
-    div.style.position="absolute";
-    div.style.left=x+"px";
-    div.style.top=y+"px";
-    div.style.transform="translate(-50%,-50%)";
-    div.innerText=p.name;
-    circle.appendChild(div);
+document.getElementById("createBtn").onclick=()=>{
+  lobbyCode = Math.random().toString(36).substring(2,6).toUpperCase();
+  const lobbyRef = ref(db,"lobbies/"+lobbyCode);
+  set(lobbyRef,{
+    public:true
   });
-  const arrow=document.getElementById("currentArrow");
-  if(gameState.turn!=null && players[gameState.turn]){
-    let angle=(360/n)*gameState.turn-90;
-    arrow.style.transform=`rotate(${angle}deg) translate(180px)`;
-  }
-  let current=players[gameState.turn]; if(current?.isKI && current.alive){setTimeout(()=>shoot(),1500);}
+  joinLobby(lobbyCode);
+};
+
+document.getElementById("joinBtn").onclick=()=>{
+  const code = document.getElementById("joinInput").value.toUpperCase();
+  if(code) joinLobby(code);
+};
+
+function loadServers(){
+  onValue(ref(db,"lobbies"),snap=>{
+    const data=snap.val();
+    let html="";
+    if(data){
+      Object.keys(data).forEach(code=>{
+        if(data[code].public){
+          html += `<div>${code}</div>`;
+        }
+      });
+    }
+    document.getElementById("serverList").innerHTML=html;
+  });
 }
 
-// --- SHOOT/SPIN/GIVEUP ---
-function shoot(){let p=players[gameState.turn]; if(!p) return;if(p.uid!==user.uid && !p.isKI) return;
-let pos=(gameState.pos||0)+1, dead=false;
-if(Array.isArray(gameState.bullet)){if(gameState.bullet.includes(pos-1)) dead=true;} else if(pos-1===gameState.bullet) dead=true;
-if(dead) update(ref(db,"lobbies/"+lobbyCode+"/players/"+p.key),{alive:false});
-nextTurn(pos); checkWinner();}
-function giveUp(){let p=players[gameState.turn]; if(!p) return; update(ref(db,"lobbies/"+lobbyCode+"/players/"+p.key),{alive:false}); nextTurn(gameState.pos||0); checkWinner();}
-function spin(){update(ref(db,"lobbies/"+lobbyCode+"/gameState"),{pos:Math.floor(Math.random()*(gameState.chambers||6))});}
-function nextTurn(pos){update(ref(db,"lobbies/"+lobbyCode+"/gameState"),{pos:pos%(gameState.chambers||6)}); runTransaction(ref(db,"lobbies/"+lobbyCode+"/gameState/turn"),t=>{let n=(t+1)%players.length,s=0;while(!players[n].alive && s<players.length){n=(n+1)%players.length;s++} return n;});}
+function joinLobby(code){
+  lobbyCode = code;
+  show("lobby");
+  document.getElementById("lobbyCode").innerText="Code: "+code;
 
-// --- KI ---
-function addKI(){push(ref(db,"lobbies/"+lobbyCode+"/players"),{name:"KI-"+Math.floor(Math.random()*100),uid:"ki"+Date.now(),alive:true,isKI:true});}
+  const playerRef = push(ref(db,"lobbies/"+code+"/players"));
+  playerKey = playerRef.key;
+  set(playerRef,{
+    name:name,
+    uid:user.uid
+  });
 
-// --- CHAT ---
-function sendChat(){let txt=document.getElementById("chatInput").value;if(!txt)return;push(ref(db,"lobbies/"+lobbyCode+"/chat"),{name:name,text:txt});document.getElementById("chatInput").value="";}
-function sendChatGame(){let txt=document.getElementById("chatInputGame").value;if(!txt)return;push(ref(db,"lobbies/"+lobbyCode+"/chat"),{name:name,text:txt});document.getElementById("chatInputGame").value="";}
-function updateChat(chat,lobby=false){let box=lobby?document.getElementById("chatBox"):document.getElementById("chatBoxGame");box.innerHTML=Object.values(chat).map(m=>`<div><b>${m.name}:</b> ${m.text}</div>`).join("");}
+  onValue(ref(db,"lobbies/"+code+"/players"),snap=>{
+    const data=snap.val();
+    let html="";
+    if(data){
+      Object.values(data).forEach(p=>{
+        html+=`<div class="player">${p.name}</div>`;
+      });
+    }
+    document.getElementById("players").innerHTML=html;
+  });
 
-// --- LEAVE / WINNER ---
-function leaveLobby(){if(myKey) remove(ref(db,"lobbies/"+lobbyCode+"/players/"+myKey)); show("menu"); isHost=false;}
-function checkWinner(){let alive=players.filter(p=>p.alive); if(alive.length===1){let txt=document.getElementById("winnerText"); txt.innerText=`WINNER: ${alive[0].name}`; txt.style.display="block"; setTimeout(()=>location.reload(),4000);}}
+  onValue(ref(db,"lobbies/"+code+"/chat"),snap=>{
+    const data=snap.val();
+    let html="";
+    if(data){
+      Object.values(data).forEach(m=>{
+        html+=`<div><b>${m.name}:</b> ${m.text}</div>`;
+      });
+    }
+    document.getElementById("chatBox").innerHTML=html;
+  });
+}
+
+document.getElementById("sendBtn").onclick=()=>{
+  const text=document.getElementById("chatInput").value;
+  if(!text) return;
+  push(ref(db,"lobbies/"+lobbyCode+"/chat"),{
+    name:name,
+    text:text
+  });
+  document.getElementById("chatInput").value="";
+};
+
+document.getElementById("leaveBtn").onclick=()=>{
+  remove(ref(db,"lobbies/"+lobbyCode+"/players/"+playerKey));
+  show("menu");
+};
 </script>
+
 </body>
 </html>
