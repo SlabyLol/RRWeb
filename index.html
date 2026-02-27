@@ -10,7 +10,7 @@ body{margin:0;height:100vh;background:var(--dark);color:#e8f0ff;font-family:'Cou
 .screen{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;z-index:10;padding:20px;}
 .screen.active{display:flex;}
 .title{font-size:clamp(5rem,15vw,10rem);font-weight:900;text-transform:uppercase;letter-spacing:0.5em;color:#fff;text-shadow:0 0 25px var(--cyan),0 0 70px var(--pink);}
-input,button{padding:12px 20px;margin:5px;font-size:1.5rem;color:var(--pink);background:transparent;border:2px solid var(--pink);cursor:pointer;}
+button,input{padding:12px 20px;margin:5px;font-size:1.5rem;color:var(--pink);background:transparent;border:2px solid var(--pink);cursor:pointer;}
 button:hover{background:var(--pink);color:#000;}
 .layout{display:flex;width:100%;max-width:1200px;margin-top:20px;}
 .left{flex:1;}
@@ -22,7 +22,7 @@ button:hover{background:var(--pink);color:#000;}
 #circle{position:absolute;inset:0;border-radius:50%;border:2px solid var(--cyan);}
 .playerLabel{position:absolute;transform:translate(-50%,-50%);transition:all 0.5s;}
 #arrow{position:absolute;width:0;height:0;border-left:15px solid transparent;border-right:15px solid transparent;border-bottom:30px solid yellow;top:-15px;left:50%;transform-origin:center bottom;transition:transform 0.5s;}
-#gun{font-size:100px;cursor:pointer;user-select:none;position:absolute;bottom:-80px;left:50%;transform:translateX(-50%);transition:transform 0.5s;}
+#gun{font-size:100px;cursor:pointer;user-select:none;position:absolute;bottom:-80px;left:50%;transform:translateX(-50%);transition:all 0.5s;}
 #status{text-align:center;margin:20px;font-size:2rem;}
 @keyframes bangAnim {0%{transform:scale(1) rotate(0deg);opacity:1;}50%{transform:scale(1.5) rotate(30deg);opacity:1;}100%{transform:scale(2) rotate(180deg);opacity:0;}}
 </style>
@@ -106,7 +106,7 @@ const auth = getAuth(app);
 
 let currentUser=null, lobbyId=null, myKey=null, isHost=false;
 let players=[], gameState=null;
-let playerName="";
+let playerName="", chambers=6;
 
 const startScreen=document.getElementById('startScreen');
 const menuScreen=document.getElementById('menuScreen');
@@ -129,7 +129,6 @@ const chatBox=document.getElementById('chatBox');
 const chatInput=document.getElementById('chatInput');
 const sendBtn=document.getElementById('sendBtn');
 const startGameBtn=document.getElementById('startGameBtn');
-
 const statusDisplay=document.getElementById('status');
 const gamePlayers=document.getElementById('gamePlayers');
 const spinBtn=document.getElementById('spinBtn');
@@ -141,18 +140,13 @@ const circle=document.getElementById('circle');
 const arrow=document.getElementById('arrow');
 const gun=document.getElementById('gun');
 
-// --- Auth ---
 signInAnonymously(auth).catch(console.error);
 onAuthStateChanged(auth,u=>{ if(u) currentUser=u;});
 
-// --- Screens ---
 function showScreen(screen){ [startScreen,menuScreen,lobbyScreen,gameScreen].forEach(s=>s.classList.remove('active')); screen.classList.add('active'); }
-
-// --- Enter ---
 enterBtn.onclick=()=>{ playerName=nameInput.value||"Choom"; showScreen(menuScreen); loadPublicServers(); };
 nameInput.addEventListener('keydown',e=>{ if(e.key==="Enter") enterBtn.click(); });
 
-// --- Lobby ---
 function generateLobbyID(){ return Math.random().toString(36).substring(2,6).toUpperCase(); }
 async function createLobby(isPublic, code=null){
 lobbyId=generateLobbyID(); isHost=true;
@@ -176,7 +170,6 @@ showScreen(lobbyScreen);
 }
 joinBtn.onclick=()=>joinLobby(joinLobbyInput.value.toUpperCase());
 
-// --- Lobby Listener & Game ---
 function listenLobby(){
 onValue(ref(db,"lobbies/"+lobbyId),snap=>{
 const data=snap.val();
@@ -186,7 +179,6 @@ renderPlayers(data.players||{});
 renderChat(data.chat||{});
 let humanCount=0; for(let k in data.players) if(!data.players[k].isKI) humanCount++;
 if(isHost && humanCount===0) remove(ref(db,"lobbies/"+lobbyId));
-
 if(data.gameState && data.gameState.started){
 gameState=data.gameState;
 showScreen(gameScreen);
@@ -196,20 +188,19 @@ renderGameUI();
 });
 }
 
-// Render Players
 function renderPlayers(playersObj){ players=[]; let html=""; for(let k in playersObj){ const p=playersObj[k]; players.push({key:k,...p}); html+=`<div class="player">${p.name}${p.isKI?" 🤖":""}</div>`;} playerList.innerHTML=html; }
 function renderChat(chatObj){ let html=""; for(let k in chatObj) html+=`<div><b>${chatObj[k].name}:</b> ${chatObj[k].text}</div>`; chatBox.innerHTML=html; }
 
 addKiBtn.onclick=()=>push(ref(db,"lobbies/"+lobbyId+"/players"),{name:"AI-"+Math.floor(Math.random()*100),uid:"AI"+Date.now(),isKI:true,alive:true});
-leaveBtn.onclick=()=>{ if(myKey) remove(ref(db,"lobbies/"+lobbyId+"/players/"+myKey)); showScreen(menuScreen); loadPublicServers(); };
+leaveBtn.onclick=()=>{ if(myKey) remove(ref(db,"lobbies/"+lobbyId+"/players/"+myKey]); showScreen(menuScreen); loadPublicServers(); };
 sendBtn.onclick=()=>{ if(chatInput.value) push(ref(db,"lobbies/"+lobbyId+"/chat"),{name:playerName,text:chatInput.value}); chatInput.value=""; };
 
 startGameBtn.onclick=async()=>{
 if(!isHost){ alert("Only host can start game"); return; }
 if(players.length<2){ alert("Need at least 2 players"); return; }
 await set(ref(db,"lobbies/"+lobbyId+"/gameState"),{
-started:true, bulletPos:Math.floor(Math.random()*6),
-currentPos:0, currentTurn:0, chambers:6
+started:true, bulletPos:Math.floor(Math.random()*chambers),
+currentPos:0, currentTurn:0, chambers:chambers
 });
 };
 
@@ -239,9 +230,59 @@ alivePlayers.forEach(p=>{ html+=`<div class="player${p.alive?'':' dead'}">${p.na
 gamePlayers.innerHTML=html;
 statusDisplay.textContent=`Turn: ${players[gameState.currentTurn]?.name}`;
 rotateArrow();
+updateButtons();
 }
 
-// TODO: Shoot / DoubleShoot / Spin / GiveUp / BANG / KI
+// --- Buttons ---
+function updateButtons(){
+const myTurn=players[gameState.currentTurn]?.uid===currentUser?.uid;
+[shootBtn,doubleShootBtn,giveUpBtn,spinBtn].forEach(b=>b.disabled=!myTurn);
+}
+
+// --- Shoot Logic ---
+async function doShoot(count=1){
+if(!gameState) return;
+let pos=gameState.currentPos; let bang=false;
+for(let i=0;i<count;i++){ pos=(pos+1)%chambers; if(pos===gameState.bulletPos){ bang=true; break; } }
+const currentPlayer=players[gameState.currentTurn];
+if(bang){
+await update(ref(db,"lobbies/"+lobbyId+"/players/"+currentPlayer.key),{alive:false});
+statusDisplay.textContent=`BANG! ${currentPlayer.name} died!`;
+const labelEl=[...document.querySelectorAll('.playerLabel')].find(el=>el.textContent===currentPlayer.name);
+if(labelEl){ labelEl.style.animation='bangAnim 1s forwards'; }
+checkGameOver();
+}else{
+await update(ref(db,"lobbies/"+lobbyId+"/gameState"),{currentPos:pos});
+nextTurn();
+}
+renderGameUI();
+}
+
+function nextTurn(){
+runTransaction(ref(db,"lobbies/"+lobbyId+"/gameState/currentTurn"),t=>{
+let next=(t+1)%players.length;
+while(!players[next]?.alive) next=(next+1)%players.length;
+return next;
+});
+}
+
+shootBtn.onclick=()=>doShoot(1);
+doubleShootBtn.onclick=()=>doShoot(2);
+spinBtn.onclick=async()=>{ await update(ref(db,"lobbies/"+lobbyId+"/gameState"),{bulletPos:Math.floor(Math.random()*chambers),currentPos:0}); };
+giveUpBtn.onclick=async()=>{ await update(ref(db,"lobbies/"+lobbyId+"/players/"+players[gameState.currentTurn].key),{alive:false}); nextTurn(); };
+
+function checkGameOver(){
+const alive=players.filter(p=>p.alive); if(alive.length<=1){ setTimeout(()=>{ alert(`Winner: ${alive[0]?.name||"None"}`); location.reload(); },1500); }
+}
+
+// --- Public Servers ---
+function loadPublicServers(){
+onValue(ref(db,"lobbies"),snap=>{
+const data=snap.val(); let html="";
+if(data) for(let id in data) if(data[id].public) html+=`<div>${id}</div>`;
+serverList.innerHTML=html;
+});
+}
 </script>
 </body>
 </html>
